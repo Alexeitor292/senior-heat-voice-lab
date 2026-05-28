@@ -1,9 +1,11 @@
+import json
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Request, Response
 from twilio.twiml.voice_response import VoiceResponse
 
 from app.config import settings
+from app.services.risk_analysis_service import risk_analysis_service
 
 router = APIRouter(prefix="/twilio", tags=["Twilio Webhooks"])
 
@@ -20,70 +22,6 @@ def parse_twilio_form(raw_body: bytes) -> dict:
     return {
         key: values[0] if values else None
         for key, values in parsed.items()
-    }
-
-
-def classify_demo_speech_risk(transcript: str) -> dict:
-    """
-    Very simple demo-only risk classifier.
-
-    This is not AI.
-    This is not medical diagnosis.
-    This is just a temporary keyword check so we can test the workflow.
-    """
-
-    if not transcript:
-        return {
-            "risk_level": "UNKNOWN",
-            "reason": "No speech transcript received."
-        }
-
-    text = transcript.lower()
-
-    red_keywords = [
-        "confused",
-        "can't think",
-        "cannot think",
-        "passed out",
-        "fainted",
-        "seizure",
-        "collapsed",
-        "can't stand",
-        "cannot stand"
-    ]
-
-    yellow_keywords = [
-        "dizzy",
-        "weak",
-        "nauseous",
-        "nausea",
-        "headache",
-        "tired",
-        "hot",
-        "dehydrated",
-        "thirsty",
-        "not okay",
-        "not feeling good",
-        "sick"
-    ]
-
-    for keyword in red_keywords:
-        if keyword in text:
-            return {
-                "risk_level": "RED",
-                "reason": f"Detected urgent keyword: {keyword}"
-            }
-
-    for keyword in yellow_keywords:
-        if keyword in text:
-            return {
-                "risk_level": "YELLOW",
-                "reason": f"Detected concern keyword: {keyword}"
-            }
-
-    return {
-        "risk_level": "GREEN",
-        "reason": "No concern keywords detected in this demo."
     }
 
 
@@ -185,7 +123,7 @@ async def heat_check_response(request: Request):
 @router.post("/voice/heat-check-speech")
 async def heat_check_speech():
     """
-    Step 3 speech check-in.
+    Step 3 and Step 4 speech check-in.
 
     Twilio calls this endpoint after the test user answers.
     This version asks the caller to respond by speaking.
@@ -223,9 +161,10 @@ async def heat_check_speech():
 @router.post("/voice/heat-check-speech-response")
 async def heat_check_speech_response(request: Request):
     """
-    Step 3 speech response handler.
+    Step 4 speech response handler.
 
     Twilio sends the speech transcript here as SpeechResult.
+    We then send the transcript to the LLM for structured risk analysis.
     """
 
     form = parse_twilio_form(await request.body())
@@ -236,7 +175,10 @@ async def heat_check_speech_response(request: Request):
     from_number = form.get("From")
     to_number = form.get("To")
 
-    risk = classify_demo_speech_risk(speech_result or "")
+    analysis = risk_analysis_service.analyze_transcript(
+        transcript=speech_result or "",
+        speech_confidence=confidence
+    )
 
     print("\nHeat Check Speech Response")
     print("--------------------------")
@@ -245,25 +187,28 @@ async def heat_check_speech_response(request: Request):
     print(f"To: {to_number}")
     print(f"SpeechResult: {speech_result}")
     print(f"Confidence: {confidence}")
-    print(f"Demo Risk Level: {risk['risk_level']}")
-    print(f"Demo Reason: {risk['reason']}")
+    print("\nStructured Risk Analysis")
+    print("------------------------")
+    print(json.dumps(analysis, indent=2))
+
+    risk_level = analysis.get("risk_level", "UNKNOWN")
 
     response = VoiceResponse()
 
-    if risk["risk_level"] == "GREEN":
+    if risk_level == "GREEN":
         response.say(
             "Thank you. We captured your spoken response. "
             "For this test, the result looks normal. Goodbye."
         )
 
-    elif risk["risk_level"] == "YELLOW":
+    elif risk_level == "YELLOW":
         response.say(
             "Thank you. We captured your spoken response. "
-            "For this test, we recorded a yellow concern. "
+            "For this test, we recorded a check-in concern. "
             "In a future version, this would notify a caregiver. Goodbye."
         )
 
-    elif risk["risk_level"] == "RED":
+    elif risk_level == "RED":
         response.say(
             "Thank you. We captured your spoken response. "
             "For this test, we recorded a high concern. "
@@ -272,8 +217,8 @@ async def heat_check_speech_response(request: Request):
 
     else:
         response.say(
-            "Thank you. We were not able to clearly understand the response. "
-            "In a future version, this would trigger a follow-up check. Goodbye."
+            "Thank you. We were not able to clearly assess the response. "
+            "In a future version, this would trigger a caregiver follow-up. Goodbye."
         )
 
     return Response(
