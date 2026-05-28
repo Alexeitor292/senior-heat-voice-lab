@@ -5,6 +5,8 @@ from fastapi import APIRouter, Request, Response
 from twilio.twiml.voice_response import VoiceResponse
 
 from app.config import settings
+from app.services.alert_service import alert_service
+from app.services.alert_store import alert_store
 from app.services.risk_analysis_service import risk_analysis_service
 
 router = APIRouter(prefix="/twilio", tags=["Twilio Webhooks"])
@@ -29,9 +31,6 @@ def parse_twilio_form(raw_body: bytes) -> dict:
 async def heat_check_voice():
     """
     Step 2 keypad check-in.
-
-    Twilio calls this endpoint after the test user answers.
-    This version asks the caller to press 1 or 2.
     """
 
     response = VoiceResponse()
@@ -67,10 +66,6 @@ async def heat_check_voice():
 async def heat_check_response(request: Request):
     """
     Step 2 keypad response handler.
-
-    Digit meanings:
-    1 = Senior says they are okay
-    2 = Senior says they are not okay
     """
 
     form = parse_twilio_form(await request.body())
@@ -123,10 +118,7 @@ async def heat_check_response(request: Request):
 @router.post("/voice/heat-check-speech")
 async def heat_check_speech():
     """
-    Step 3 and Step 4 speech check-in.
-
-    Twilio calls this endpoint after the test user answers.
-    This version asks the caller to respond by speaking.
+    Step 3, Step 4, and Step 5 speech check-in.
     """
 
     response = VoiceResponse()
@@ -161,10 +153,11 @@ async def heat_check_speech():
 @router.post("/voice/heat-check-speech-response")
 async def heat_check_speech_response(request: Request):
     """
-    Step 4 speech response handler.
+    Step 5 speech response handler.
 
     Twilio sends the speech transcript here as SpeechResult.
-    We then send the transcript to the LLM for structured risk analysis.
+    We send the transcript to the LLM for structured risk analysis.
+    If the risk is YELLOW, RED, or UNKNOWN, we call the caregiver.
     """
 
     form = parse_twilio_form(await request.body())
@@ -180,6 +173,12 @@ async def heat_check_speech_response(request: Request):
         speech_confidence=confidence
     )
 
+    alert_result = alert_service.send_caregiver_voice_alert(
+        risk_analysis=analysis,
+        transcript=speech_result or "",
+        call_sid=call_sid
+    )
+
     print("\nHeat Check Speech Response")
     print("--------------------------")
     print(f"Call SID: {call_sid}")
@@ -187,11 +186,17 @@ async def heat_check_speech_response(request: Request):
     print(f"To: {to_number}")
     print(f"SpeechResult: {speech_result}")
     print(f"Confidence: {confidence}")
+
     print("\nStructured Risk Analysis")
     print("------------------------")
     print(json.dumps(analysis, indent=2))
 
+    print("\nCaregiver Voice Alert Result")
+    print("----------------------------")
+    print(json.dumps(alert_result, indent=2))
+
     risk_level = analysis.get("risk_level", "UNKNOWN")
+    alert_sent = alert_result.get("alert_sent", False)
 
     response = VoiceResponse()
 
@@ -202,24 +207,135 @@ async def heat_check_speech_response(request: Request):
         )
 
     elif risk_level == "YELLOW":
-        response.say(
-            "Thank you. We captured your spoken response. "
-            "For this test, we recorded a check-in concern. "
-            "In a future version, this would notify a caregiver. Goodbye."
-        )
+        if alert_sent:
+            response.say(
+                "Thank you. We captured your spoken response. "
+                "For this test, we recorded a check-in concern and called the caregiver. "
+                "Goodbye."
+            )
+        else:
+            response.say(
+                "Thank you. We captured your spoken response. "
+                "For this test, we recorded a check-in concern. "
+                "A caregiver call would be made in the full version. Goodbye."
+            )
 
     elif risk_level == "RED":
-        response.say(
-            "Thank you. We captured your spoken response. "
-            "For this test, we recorded a high concern. "
-            "In a future version, this would trigger an urgent caregiver alert. Goodbye."
-        )
+        if alert_sent:
+            response.say(
+                "Thank you. We captured your spoken response. "
+                "For this test, we recorded a high concern and called the caregiver. "
+                "Goodbye."
+            )
+        else:
+            response.say(
+                "Thank you. We captured your spoken response. "
+                "For this test, we recorded a high concern. "
+                "An urgent caregiver call would be made in the full version. Goodbye."
+            )
 
     else:
+        if alert_sent:
+            response.say(
+                "Thank you. We were not able to clearly assess the response. "
+                "For this test, we called the caregiver for follow-up. Goodbye."
+            )
+        else:
+            response.say(
+                "Thank you. We were not able to clearly assess the response. "
+                "In a future version, this would trigger a caregiver follow-up. Goodbye."
+            )
+
+    return Response(
+        content=str(response),
+        media_type="application/xml"
+    )
+
+
+@router.post("/voice/caregiver-alert")
+async def caregiver_alert_voice(alert_id: str):
+    """
+    Twilio calls this endpoint when the caregiver answers.
+
+    It reads the alert payload out loud.
+    """
+
+    payload = alert_store.get_alert(alert_id)
+
+    response = VoiceResponse()
+
+    if not payload:
         response.say(
-            "Thank you. We were not able to clearly assess the response. "
-            "In a future version, this would trigger a caregiver follow-up. Goodbye."
+            "This is a heat safety alert test, but the alert details could not be found. "
+            "Please check the dashboard or contact the system administrator. Goodbye."
         )
+
+        return Response(
+            content=str(response),
+            media_type="application/xml"
+        )
+
+    title = payload.get("title", "Heat check-in alert")
+    risk_level = payload.get("risk_level", "UNKNOWN")
+    transcript = payload.get("transcript", "No clear transcript captured.")
+    caregiver_summary = payload.get(
+        "caregiver_summary",
+        "No caregiver summary was generated."
+    )
+    recommended_action = payload.get(
+        "recommended_action",
+        "Please check in with the person."
+    )
+    reported_symptoms = payload.get("reported_symptoms", [])
+    red_flags = payload.get("red_flags", [])
+
+    response.say(
+        "This is a caregiver alert from the heat safety check-in system."
+    )
+
+    response.pause(length=1)
+
+    response.say(
+        f"{title}. Risk level: {risk_level}."
+    )
+
+    response.pause(length=1)
+
+    response.say(
+        f"The caller said: {transcript}"
+    )
+
+    response.pause(length=1)
+
+    response.say(
+        f"Summary: {caregiver_summary}"
+    )
+
+    response.pause(length=1)
+
+    if reported_symptoms:
+        response.say(
+            f"Reported symptoms include: {', '.join(reported_symptoms)}."
+        )
+        response.pause(length=1)
+
+    if red_flags:
+        response.say(
+            f"Urgent warning signs include: {', '.join(red_flags)}."
+        )
+        response.pause(length=1)
+
+    response.say(
+        f"Recommended action: {recommended_action}"
+    )
+
+    response.pause(length=1)
+
+    response.say(
+        "This is not a medical diagnosis. "
+        "Please use your judgment and contact emergency services if the person appears to be in immediate danger. "
+        "Goodbye."
+    )
 
     return Response(
         content=str(response),

@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     test_phone_number: str
     public_base_url: str
 
+    caregiver_test_phone_number: str | None = None
+
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
 
