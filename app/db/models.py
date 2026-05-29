@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
@@ -8,6 +8,93 @@ from app.db.database import Base
 
 def utc_now():
     return datetime.now(timezone.utc)
+
+
+class SeniorProfile(Base):
+    __tablename__ = "senior_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    phone_number: Mapped[str] = mapped_column(String(30), index=True, nullable=False)
+
+    preferred_language: Mapped[str] = mapped_column(String(20), default="en-US")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
+class CaregiverProfile(Base):
+    __tablename__ = "caregiver_profiles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    phone_number: Mapped[str] = mapped_column(String(30), index=True, nullable=False)
+
+    relationship: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    alert_priority: Mapped[int] = mapped_column(Integer, default=1)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
+class CheckInCallSession(Base):
+    __tablename__ = "check_in_call_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    caregiver_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("caregiver_profiles.id"),
+        index=True,
+        nullable=True,
+    )
+
+    senior_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    senior_phone_number: Mapped[str] = mapped_column(String(30), nullable=False)
+
+    caregiver_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    caregiver_phone_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+    senior_call_sid: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+
+    status: Mapped[str] = mapped_column(String(40), default="created")
+    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
 
 
 class CheckIn(Base):
@@ -48,7 +135,7 @@ class CheckIn(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
-        onupdate=utc_now
+        onupdate=utc_now,
     )
 
 
@@ -77,5 +164,5 @@ class CaregiverAlert(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
-        onupdate=utc_now
+        onupdate=utc_now,
     )

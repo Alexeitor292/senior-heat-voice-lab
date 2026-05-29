@@ -20,6 +20,7 @@ class AlertService:
         transcript: str,
         call_sid: str | None = None,
         check_in_id: int | None = None,
+        senior_name: str | None = None,
     ) -> dict[str, Any]:
         """
         Builds the payload that will be spoken to the caregiver.
@@ -34,12 +35,12 @@ class AlertService:
 
         caregiver_summary = risk_analysis.get(
             "caregiver_summary",
-            "No caregiver summary was generated."
+            "No caregiver summary was generated.",
         )
 
         recommended_action = risk_analysis.get(
             "recommended_action",
-            "Please check in with the person."
+            "Please check in with the person.",
         )
 
         reported_symptoms = risk_analysis.get("reported_symptoms", [])
@@ -54,6 +55,7 @@ class AlertService:
         return {
             "title": title,
             "risk_level": risk_level,
+            "senior_name": senior_name,
             "transcript": transcript or "No clear transcript captured.",
             "caregiver_summary": caregiver_summary,
             "recommended_action": recommended_action,
@@ -69,6 +71,8 @@ class AlertService:
         transcript: str,
         call_sid: str | None = None,
         check_in_id: int | None = None,
+        caregiver_phone_number: str | None = None,
+        senior_name: str | None = None,
     ) -> dict[str, Any]:
         """
         Calls the caregiver if the risk level requires escalation.
@@ -87,11 +91,16 @@ class AlertService:
                 "risk_level": risk_level,
             }
 
-        if not settings.caregiver_test_phone_number:
+        target_caregiver_phone_number = (
+            caregiver_phone_number
+            or settings.caregiver_test_phone_number
+        )
+
+        if not target_caregiver_phone_number:
             return {
                 "alert_sent": False,
                 "alert_type": "voice_call",
-                "reason": "CAREGIVER_TEST_PHONE_NUMBER is not configured.",
+                "reason": "No caregiver phone number is configured.",
                 "risk_level": risk_level,
             }
 
@@ -100,18 +109,19 @@ class AlertService:
             transcript=transcript,
             call_sid=call_sid,
             check_in_id=check_in_id,
+            senior_name=senior_name,
         )
 
         alert = checkin_store_service.create_caregiver_alert(
             check_in_id=check_in_id,
             risk_level=risk_level,
-            caregiver_phone_number=settings.caregiver_test_phone_number,
+            caregiver_phone_number=target_caregiver_phone_number,
             payload=payload,
         )
 
         try:
             call = twilio_service.start_caregiver_voice_alert_call(
-                caregiver_phone_number=settings.caregiver_test_phone_number,
+                caregiver_phone_number=target_caregiver_phone_number,
                 alert_id=alert.id,
             )
 
@@ -124,7 +134,7 @@ class AlertService:
                 "alert_sent": True,
                 "alert_type": "voice_call",
                 "risk_level": risk_level,
-                "to": settings.caregiver_test_phone_number,
+                "to": target_caregiver_phone_number,
                 "alert_id": alert.id,
                 "caregiver_call_sid": call.sid,
                 "message_preview": payload,
@@ -140,7 +150,7 @@ class AlertService:
                 "alert_sent": False,
                 "alert_type": "voice_call",
                 "risk_level": risk_level,
-                "to": settings.caregiver_test_phone_number,
+                "to": target_caregiver_phone_number,
                 "alert_id": alert.id,
                 "error": str(exc),
                 "message_preview": payload,

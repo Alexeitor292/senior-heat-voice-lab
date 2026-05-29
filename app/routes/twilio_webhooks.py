@@ -7,6 +7,7 @@ from twilio.twiml.voice_response import VoiceResponse
 from app.config import settings
 from app.services.alert_service import alert_service
 from app.services.checkin_store_service import checkin_store_service
+from app.services.profile_service import profile_service
 from app.services.risk_analysis_service import risk_analysis_service
 
 router = APIRouter(prefix="/twilio", tags=["Twilio Webhooks"])
@@ -116,19 +117,30 @@ async def heat_check_response(request: Request):
 
 
 @router.post("/voice/heat-check-speech")
-async def heat_check_speech():
+async def heat_check_speech(senior_id: int | None = None):
     """
-    Step 3 through Step 6 speech check-in.
+    Step 3 through Step 7 speech check-in.
+
+    If senior_id is present, this is a profile-based call.
+    If senior_id is missing, this is the legacy .env test call.
     """
 
     response = VoiceResponse()
+
+    action_url = (
+        f"{settings.public_base_url.rstrip()}"
+        "/twilio/voice/heat-check-speech-response"
+    )
+
+    if senior_id is not None:
+        action_url = f"{action_url}?senior_id={senior_id}"
 
     gather = response.gather(
         input="speech",
         timeout=5,
         speech_timeout="auto",
         language="en-US",
-        action=f"{settings.public_base_url.rstrip('/')}/twilio/voice/heat-check-speech-response",
+        action=action_url,
         method="POST",
     )
 
@@ -151,14 +163,16 @@ async def heat_check_speech():
 
 
 @router.post("/voice/heat-check-speech-response")
-async def heat_check_speech_response(request: Request):
+async def heat_check_speech_response(
+    request: Request,
+    senior_id: int | None = None,
+):
     """
-    Step 6 speech response handler.
+    Step 7 speech response handler.
 
     Twilio sends the speech transcript here as SpeechResult.
-    We send the transcript to the LLM for structured risk analysis.
-    We save the check-in to SQLite.
-    If the risk is YELLOW, RED, or UNKNOWN, we call the caregiver.
+    We analyze the transcript, save the check-in, and call the
+    profile caregiver if this is a profile-based check-in.
     """
 
     form = parse_twilio_form(await request.body())
@@ -168,6 +182,27 @@ async def heat_check_speech_response(request: Request):
     confidence = form.get("Confidence")
     from_number = form.get("From")
     to_number = form.get("To")
+
+    alert_context = None
+
+    if senior_id is not None:
+        alert_context = profile_service.get_alert_context_for_senior(senior_id)
+
+    if alert_context is None:
+        alert_context = profile_service.get_alert_context_for_call_sid(call_sid)
+
+    senior_name = None
+    caregiver_phone_number = None
+
+    if alert_context:
+        senior = alert_context.get("senior")
+        caregiver = alert_context.get("caregiver")
+
+        if senior:
+            senior_name = senior.get("name")
+
+        if caregiver:
+            caregiver_phone_number = caregiver.get("phone_number")
 
     analysis = risk_analysis_service.analyze_transcript(
         transcript=speech_result,
@@ -192,11 +227,16 @@ async def heat_check_speech_response(request: Request):
         transcript=speech_result,
         call_sid=call_sid,
         check_in_id=check_in.id,
+        caregiver_phone_number=caregiver_phone_number,
+        senior_name=senior_name,
     )
 
     print("\nHeat Check Speech Response")
     print("--------------------------")
     print(f"Check-in ID: {check_in.id}")
+    print(f"Profile senior_id: {senior_id}")
+    print(f"Profile senior_name: {senior_name}")
+    print(f"Profile caregiver_phone_number: {caregiver_phone_number}")
     print(f"Call SID: {call_sid}")
     print(f"From: {from_number}")
     print(f"To: {to_number}")
@@ -273,7 +313,7 @@ async def caregiver_alert_voice(alert_id: str):
     Twilio calls this endpoint when the caregiver answers.
 
     It reads the alert payload out loud.
-    The payload is now stored in SQLite.
+    The payload is stored in SQLite.
     """
 
     payload = checkin_store_service.get_caregiver_alert_payload(alert_id)
@@ -293,17 +333,20 @@ async def caregiver_alert_voice(alert_id: str):
 
     title = payload.get("title", "Heat check-in alert")
     risk_level = payload.get("risk_level", "UNKNOWN")
+    senior_name = payload.get("senior_name")
     transcript = payload.get("transcript", "No clear transcript captured.")
     caregiver_summary = payload.get(
         "caregiver_summary",
-        "No caregiver summary was generated."
+        "No caregiver summary was generated.",
     )
     recommended_action = payload.get(
         "recommended_action",
-        "Please check in with the person."
+        "Please check in with the person.",
     )
     reported_symptoms = payload.get("reported_symptoms", [])
     red_flags = payload.get("red_flags", [])
+
+    senior_phrase = senior_name or "the caller"
 
     response.say(
         "This is a caregiver alert from the heat safety check-in system."
@@ -318,7 +361,13 @@ async def caregiver_alert_voice(alert_id: str):
     response.pause(length=1)
 
     response.say(
-        f"The caller said: {transcript}"
+        f"This alert is for {senior_phrase}."
+    )
+
+    response.pause(length=1)
+
+    response.say(
+        f"{senior_phrase} said: {transcript}"
     )
 
     response.pause(length=1)
@@ -387,6 +436,12 @@ async def twilio_status_callback(request: Request):
         call_sid=call_sid,
         call_status=call_status,
         call_duration=call_duration,
+    )
+
+    profile_service.update_call_session_status(
+        senior_call_sid=call_sid,
+        status=call_status,
+        duration_seconds=call_duration,
     )
 
     return {

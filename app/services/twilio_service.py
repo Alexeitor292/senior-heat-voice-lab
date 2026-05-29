@@ -7,13 +7,14 @@ class TwilioService:
     def __init__(self):
         self.client = Client(
             settings.twilio_account_sid,
-            settings.twilio_auth_token
+            settings.twilio_auth_token,
         )
 
     def _base_url(self) -> str:
         """
         Avoid double slashes if PUBLIC_BASE_URL accidentally has a trailing slash.
         """
+
         return settings.public_base_url.rstrip("/")
 
     def start_test_call(self):
@@ -40,7 +41,7 @@ class TwilioService:
                 "initiated",
                 "ringing",
                 "answered",
-                "completed"
+                "completed",
             ],
         )
 
@@ -48,10 +49,7 @@ class TwilioService:
 
     def start_speech_test_call(self):
         """
-        Step 3, Step 4, and Step 5 call.
-
-        Starts a Twilio outbound call that asks the test user
-        to answer by speaking instead of pressing a keypad digit.
+        Legacy test call using TEST_PHONE_NUMBER from .env.
         """
 
         base_url = self._base_url()
@@ -70,7 +68,46 @@ class TwilioService:
                 "initiated",
                 "ringing",
                 "answered",
-                "completed"
+                "completed",
+            ],
+        )
+
+        return call
+
+    def start_senior_speech_check_call(
+        self,
+        senior_id: int,
+        senior_phone_number: str,
+    ):
+        """
+        Starts a profile-based speech check-in call.
+
+        The senior_id is passed into the Twilio webhook URL so that
+        when Twilio posts the spoken response back, we know which
+        senior profile and caregiver profile this call belongs to.
+        """
+
+        base_url = self._base_url()
+
+        voice_webhook_url = (
+            f"{base_url}/twilio/voice/heat-check-speech"
+            f"?senior_id={senior_id}"
+        )
+
+        status_callback_url = f"{base_url}/twilio/status"
+
+        call = self.client.calls.create(
+            to=senior_phone_number,
+            from_=settings.twilio_phone_number,
+            url=voice_webhook_url,
+            method="POST",
+            status_callback=status_callback_url,
+            status_callback_method="POST",
+            status_callback_event=[
+                "initiated",
+                "ringing",
+                "answered",
+                "completed",
             ],
         )
 
@@ -79,12 +116,12 @@ class TwilioService:
     def start_caregiver_voice_alert_call(
         self,
         caregiver_phone_number: str,
-        alert_id: str
+        alert_id: str,
     ):
         """
         Starts an outbound voice call to the caregiver.
 
-        The alert_id points to an in-memory alert payload that the
+        The alert_id points to a database alert payload that the
         caregiver alert webhook will read and speak out loud.
         """
 
@@ -108,7 +145,7 @@ class TwilioService:
                 "initiated",
                 "ringing",
                 "answered",
-                "completed"
+                "completed",
             ],
         )
 
@@ -118,14 +155,14 @@ class TwilioService:
         """
         Keeps SMS available for later production testing.
 
-        For now, caregiver alerts will use voice calls because
-        SMS deliverability requires additional Twilio compliance setup.
+        For now, caregiver alerts use voice calls because SMS deliverability
+        requires additional Twilio compliance setup.
         """
 
         sms = self.client.messages.create(
             to=to_phone_number,
             from_=settings.twilio_phone_number,
-            body=message
+            body=message,
         )
 
         return sms
