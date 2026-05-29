@@ -240,17 +240,28 @@ def _operator_action_title(row: OperatorAction) -> str:
     return "Operator action recorded"
 
 
+def _clean_sentence(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    return value.strip().rstrip(".")
+
+
 def _operator_action_description(row: OperatorAction) -> str:
     parts = []
 
-    if row.reason:
-        parts.append(f"Reason: {row.reason}")
+    reason = _clean_sentence(row.reason)
+    note = _clean_sentence(row.note)
+    status = _clean_sentence(row.status)
 
-    if row.note:
-        parts.append(f"Note: {row.note}")
+    if reason:
+        parts.append(f"Reason: {reason}")
 
-    if row.status:
-        parts.append(f"Status: {row.status}")
+    if note:
+        parts.append(f"Note: {note}")
+
+    if status:
+        parts.append(f"Status: {status}")
 
     return ". ".join(parts) + "." if parts else "Operator action recorded."
 
@@ -351,11 +362,29 @@ class TimelineService:
                 db.query(HeatRiskObservation)
                 .filter(HeatRiskObservation.senior_id == senior_id)
                 .order_by(HeatRiskObservation.observed_at.desc())
-                .limit(limit)
+                .limit(limit * 5)
                 .all()
             )
 
+            # Keep the timeline human-readable:
+            # - Always show the newest heat observation.
+            # - Also show older observations only when the HeatRisk value changes.
+            # This prevents repeated NWS checks from flooding the activity feed.
+            selected_heat_observations = []
+            last_seen_heat_value = None
+
             for row in heat_observations:
+                is_first_observation = len(selected_heat_observations) == 0
+                is_risk_change = row.heat_risk_value != last_seen_heat_value
+
+                if is_first_observation or is_risk_change:
+                    selected_heat_observations.append(row)
+                    last_seen_heat_value = row.heat_risk_value
+
+                if len(selected_heat_observations) >= 3:
+                    break
+
+            for row in selected_heat_observations:
                 events.append(
                     _event(
                         event_id=f"heat-risk-{row.id}",
