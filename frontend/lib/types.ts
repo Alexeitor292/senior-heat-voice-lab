@@ -22,6 +22,10 @@ export interface Senior {
   name: string;
   age: number;
   gender?: string;
+  dateOfBirth?: string | null;
+  pronouns?: string | null;
+  primaryLanguage?: string | null;
+  hasRealDemographics?: boolean;
   location: string;
   city: string;
   state: string;

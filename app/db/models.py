@@ -30,6 +30,43 @@ class SeniorProfile(Base):
         onupdate=utc_now,
     )
 
+class SeniorDemographics(Base):
+    __tablename__ = "senior_demographics"
+
+    __table_args__ = (
+        UniqueConstraint("senior_id", name="uq_senior_demographics_senior_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    # Store as YYYY-MM-DD for now. Later this can become a Date column
+    # when Alembic migrations are introduced.
+    date_of_birth: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # Use explicit age_years for prototype/demo flexibility.
+    # If date_of_birth is available, service can compute age from it.
+    age_years: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    gender: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    pronouns: Mapped[str | None] = mapped_column(String(40), nullable=True)
+
+    primary_language: Mapped[str | None] = mapped_column(String(40), nullable=True)
+
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
 
 class CaregiverProfile(Base):
     __tablename__ = "caregiver_profiles"

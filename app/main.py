@@ -16,6 +16,7 @@ from app.routes.twilio_webhooks import router as twilio_router
 from app.routes.ui_api import router as ui_api_router
 from app.routes.support_network import router as support_network_router
 from app.routes.operational_status import router as operational_status_router
+from app.routes.demographics import router as demographics_router
 from app.security.basic_auth import BasicDashboardAuthMiddleware
 from app.security.twilio_signature import TwilioSignatureValidationMiddleware
 from app.services.checkin_store_service import checkin_store_service
@@ -54,6 +55,7 @@ if static_dir.exists():
 app.include_router(calls_router)
 app.include_router(seniors_router)
 app.include_router(support_network_router)
+app.include_router(demographics_router)
 app.include_router(schedules_router)
 app.include_router(heat_risk_router)
 app.include_router(baselines_router)
@@ -61,7 +63,6 @@ app.include_router(dashboard_router)
 app.include_router(operational_status_router)
 app.include_router(twilio_router)
 app.include_router(ui_api_router)
-
 
 
 @app.get("/")

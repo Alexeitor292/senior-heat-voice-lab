@@ -12,6 +12,8 @@ from app.services.heat_risk_service import heat_risk_service
 
 from app.services.operational_status_service import operational_status_service
 
+from app.services.demographics_service import demographics_service
+
 router = APIRouter(prefix="/ui-api", tags=["UI API"])
 
 
@@ -393,6 +395,7 @@ def _display_senior(raw: dict[str, Any], index: int) -> dict[str, Any]:
     fallback_location = DISPLAY_LOCATIONS[index % len(DISPLAY_LOCATIONS)]
     support_context = _support_context_for_senior(raw, fallback_location)
     heat_context = _heat_settings_context_for_senior(raw, fallback_location)
+    demographics_context = _demographics_context_for_senior(raw, fallback_location)
     operational_status = operational_status_service.get_status_for_senior(
         senior=raw,
         has_support_contact=bool(support_context["hasSupportContact"]),
@@ -407,8 +410,12 @@ def _display_senior(raw: dict[str, Any], index: int) -> dict[str, Any]:
     return {
         "id": senior_id,
         "name": name,
-        "age": fallback_location["age"],
-        "gender": fallback_location["gender"],
+        "age": demographics_context["age"],
+        "gender": demographics_context["gender"],
+        "dateOfBirth": demographics_context["dateOfBirth"],
+        "pronouns": demographics_context["pronouns"],
+        "primaryLanguage": demographics_context["primaryLanguage"],
+        "hasRealDemographics": demographics_context["hasRealDemographics"],
 
         # Real location fields come from SeniorHeatSettings when available.
         "location": heat_context["location"],
@@ -655,6 +662,37 @@ def _heat_check(senior: dict[str, Any]) -> dict[str, Any]:
         "lastCheckIn": senior["latestCheckIn"],
     }
 
+def _demographics_context_for_senior(
+    raw: dict[str, Any],
+    fallback_location: dict[str, Any],
+) -> dict[str, Any]:
+    fallback = {
+        "age": fallback_location["age"],
+        "gender": fallback_location["gender"],
+        "dateOfBirth": None,
+        "pronouns": None,
+        "primaryLanguage": raw.get("preferred_language") or "en-US",
+        "hasRealDemographics": False,
+    }
+
+    senior_id = _coerce_numeric_senior_id(raw)
+
+    if senior_id is None:
+        return fallback
+
+    demographics = demographics_service.get_demographics(senior_id)
+
+    if not demographics:
+        return fallback
+
+    return {
+        "age": demographics.get("age_years") or fallback["age"],
+        "gender": demographics.get("gender") or fallback["gender"],
+        "dateOfBirth": demographics.get("date_of_birth"),
+        "pronouns": demographics.get("pronouns"),
+        "primaryLanguage": demographics.get("primary_language") or fallback["primaryLanguage"],
+        "hasRealDemographics": True,
+    }
 
 @router.get("/map")
 def get_map_view():
