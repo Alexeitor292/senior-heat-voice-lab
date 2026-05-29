@@ -8,6 +8,7 @@ from app.config import settings
 PHONE_PATTERN = re.compile(r"\+\d{8,15}")
 
 
+# Phone / contact identifiers
 SENSITIVE_KEYWORDS = (
     "phone",
     "phone_number",
@@ -17,6 +18,7 @@ SENSITIVE_KEYWORDS = (
     "senior_phone_number",
 )
 
+# Twilio call/message SIDs
 CALL_SID_KEYWORDS = (
     "call_sid",
     "senior_call_sid",
@@ -25,18 +27,43 @@ CALL_SID_KEYWORDS = (
     "message_sid",
 )
 
+# Spoken transcripts
 TRANSCRIPT_KEYWORDS = (
     "transcript",
     "speech_result",
     "source_transcript",
 )
 
+# Raw LLM / analysis blobs
 RAW_ANALYSIS_KEYWORDS = (
     "raw_analysis",
     "raw_analysis_json",
     "raw_response",
     "raw_response_json",
 )
+
+# Senior / caregiver identity
+IDENTITY_KEYWORDS = (
+    "senior_name",
+    "caregiver_name",
+)
+
+# Clinical health-context content that may include names or assessments
+HEALTH_CONTENT_KEYWORDS = (
+    "caregiver_summary",
+    "recommended_action",
+    "reported_symptoms",
+    "symptoms",
+    "red_flags",
+    "notes",
+)
+
+# Full payload / preview blobs
+PAYLOAD_KEYWORDS = (
+    "message_preview",
+    "payload",
+)
+
 
 def _log_pii_enabled() -> bool:
     return bool(getattr(settings, "log_pii", False))
@@ -152,6 +179,21 @@ def safe_value(key: str, value: Any) -> Any:
     if any(keyword in normalized_key for keyword in RAW_ANALYSIS_KEYWORDS):
         return hide_raw_analysis(value)
 
+    if any(keyword in normalized_key for keyword in IDENTITY_KEYWORDS):
+        return value if _log_pii_enabled() else "[name hidden]"
+
+    if any(keyword in normalized_key for keyword in HEALTH_CONTENT_KEYWORDS):
+        if _log_pii_enabled():
+            return value
+        if isinstance(value, list):
+            return {"hidden": True, "count": len(value)}
+        return "[hidden]"
+
+    if any(keyword in normalized_key for keyword in PAYLOAD_KEYWORDS):
+        if _log_pii_enabled():
+            return safe_log_object(value)
+        return {"present": value is not None}
+
     return safe_log_object(value)
 
 
@@ -185,6 +227,82 @@ def safe_json_dumps(value: Any) -> str:
         ensure_ascii=False,
         default=str,
     )
+
+
+def safe_alert_result_for_logging(
+    alert_result: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """
+    Returns a safe subset of an alert result dict for logging.
+
+    Drops message_preview and any raw payload fields.
+    Masks phone numbers and call SIDs.
+    """
+
+    if alert_result is None:
+        return None
+
+    out: dict[str, Any] = {}
+
+    for key in ("alert_sent", "alert_type", "alert_kind", "risk_level", "alert_id", "check_in_id"):
+        if key in alert_result:
+            out[key] = alert_result[key]
+
+    if "reason" in alert_result:
+        out["reason"] = redact_string(str(alert_result["reason"]))
+
+    if "caregiver_call_sid" in alert_result:
+        out["caregiver_call_sid"] = mask_call_sid(str(alert_result["caregiver_call_sid"]))
+
+    if "source_call_sid" in alert_result:
+        out["source_call_sid"] = mask_call_sid(str(alert_result["source_call_sid"]))
+
+    if "to" in alert_result:
+        out["to"] = mask_phone_number(str(alert_result["to"]))
+
+    if "error" in alert_result:
+        out["error"] = redact_string(str(alert_result["error"]))
+
+    out["message_preview_present"] = bool(alert_result.get("message_preview"))
+
+    return out
+
+
+def safe_baseline_comparison_for_logging(
+    comparison: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """
+    Returns a safe subset of a baseline comparison dict for logging.
+
+    Drops baseline_transcript, current_transcript, and any raw text.
+    Keeps numeric metrics and deviation level.
+    """
+
+    if comparison is None:
+        return None
+
+    out: dict[str, Any] = {}
+
+    for key in (
+        "has_baseline",
+        "baseline_deviation_level",
+        "baseline_sample_id",
+        "check_in_id",
+        "baseline_word_count",
+        "current_word_count",
+        "word_count_ratio",
+        "confidence_delta",
+        "confidence_drop_detected",
+        "shorter_response_detected",
+    ):
+        if key in comparison:
+            out[key] = comparison[key]
+
+    reasons = comparison.get("reasons")
+    if reasons is not None:
+        out["reason_count"] = len(reasons) if isinstance(reasons, list) else 0
+
+    return out
 
 
 def safe_log_event(title: str, payload: dict[str, Any] | None = None) -> None:

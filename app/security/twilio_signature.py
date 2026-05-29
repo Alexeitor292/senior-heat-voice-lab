@@ -1,4 +1,4 @@
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qs, parse_qsl, urlparse
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from twilio.request_validator import RequestValidator
@@ -11,53 +11,35 @@ def _is_twilio_path(path: str) -> bool:
     return path == "/twilio" or path.startswith("/twilio/")
 
 
-def _build_candidate_urls(scope: Scope, headers: dict[str, str]) -> list[str]:
+def _build_validated_url(scope: Scope) -> str:
     """
-    Returns candidate URLs to try for Twilio signature validation,
-    in priority order with duplicates removed.
+    Reconstructs the exact URL Twilio signed.
 
-    Twilio signs the public URL it called. Behind ngrok/proxies the
-    Host header or forwarded headers may differ from PUBLIC_BASE_URL,
-    so we try all plausible reconstructions.
+    Twilio signs the public URL it called, so we use PUBLIC_BASE_URL
+    from config — never raw forwarded headers, which are attacker-controlled.
     """
     path = scope.get("path", "")
     query_string = scope.get("query_string", b"").decode("utf-8")
     suffix = path + (f"?{query_string}" if query_string else "")
-
-    candidates: list[str] = []
-
-    # 1. PUBLIC_BASE_URL from config (highest priority — set to the ngrok URL)
-    candidates.append(f"{settings.public_base_url.rstrip('/')}{suffix}")
-
-    # 2. x-forwarded-proto + x-forwarded-host (set by ngrok / reverse proxies)
-    forwarded_proto = headers.get("x-forwarded-proto")
-    forwarded_host = headers.get("x-forwarded-host")
-    if forwarded_proto and forwarded_host:
-        candidates.append(f"{forwarded_proto}://{forwarded_host}{suffix}")
-
-    # 3. Host header with forwarded proto (or https fallback)
-    host = headers.get("host")
-    if host:
-        proto = forwarded_proto or "https"
-        candidates.append(f"{proto}://{host}{suffix}")
-
-    # Deduplicate while preserving order
-    seen: set[str] = set()
-    unique: list[str] = []
-    for url in candidates:
-        if url not in seen:
-            seen.add(url)
-            unique.append(url)
-
-    return unique
+    return f"{settings.public_base_url.rstrip('/')}{suffix}"
 
 
 def _parse_form_params(body: bytes) -> dict[str, str]:
-    pairs = parse_qsl(
+    """
+    Parses a Twilio form body preserving blank values.
+
+    Uses parse_qs with first-value semantics (values[0]) to match how
+    Twilio's RequestValidator hashes params — Twilio never sends duplicate
+    keys, but if it did, first-value-wins is the safe default.
+    """
+    parsed = parse_qs(
         body.decode("utf-8"),
         keep_blank_values=True,
     )
-    return {key: value for key, value in pairs}
+    return {
+        key: values[0] if values else ""
+        for key, values in parsed.items()
+    }
 
 
 class TwilioSignatureValidationMiddleware:
@@ -106,27 +88,26 @@ class TwilioSignatureValidationMiddleware:
 
         signature = headers.get("x-twilio-signature")
         params = _parse_form_params(body)
-        candidate_urls = _build_candidate_urls(scope, headers)
+        validated_url = _build_validated_url(scope)
 
-        is_valid = any(
-            self.validator.validate(url, params, signature or "")
-            for url in candidate_urls
-        )
+        is_valid = self.validator.validate(validated_url, params, signature or "")
 
         if not is_valid:
+            query_string = scope.get("query_string", b"").decode("utf-8")
             blank_keys = [k for k, v in params.items() if v == ""]
+            query_param_names = [k for k, _ in parse_qsl(query_string)]
+            parsed_base = urlparse(settings.public_base_url)
+            public_base_origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
 
             safe_log_event(
                 "Invalid Twilio Signature",
                 {
-                    "candidate_urls": candidate_urls,
                     "path": path,
+                    "public_base_url_origin": public_base_origin,
                     "has_signature_header": signature is not None,
+                    "query_param_names": query_param_names,
                     "form_param_keys": list(params.keys()),
                     "blank_form_param_keys": blank_keys,
-                    "forwarded_proto": headers.get("x-forwarded-proto"),
-                    "forwarded_host": headers.get("x-forwarded-host"),
-                    "host": headers.get("host"),
                     "hint": (
                         "Check PUBLIC_BASE_URL matches ngrok URL exactly, "
                         "and verify TWILIO_AUTH_TOKEN."

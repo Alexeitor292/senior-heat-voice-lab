@@ -11,7 +11,11 @@ from app.services.profile_service import profile_service
 from app.services.risk_analysis_service import risk_analysis_service
 from app.services.voice_baseline_service import voice_baseline_service
 from app.services.baseline_comparison_service import baseline_comparison_service
-from app.utils.safe_logging import safe_log_event
+from app.utils.safe_logging import (
+    safe_alert_result_for_logging,
+    safe_baseline_comparison_for_logging,
+    safe_log_event,
+)
 
 router = APIRouter(prefix="/twilio", tags=["Twilio Webhooks"])
 
@@ -314,7 +318,6 @@ async def heat_check_speech_response(
         {
             "check_in_id": check_in.id,
             "profile_senior_id": senior_id,
-            "profile_senior_name": senior_name,
             "profile_caregiver_phone_number": caregiver_phone_number,
             "call_sid": call_sid,
             "from_number": from_number,
@@ -323,8 +326,8 @@ async def heat_check_speech_response(
             "speech_confidence": confidence,
             "risk_level": analysis.get("risk_level"),
             "caregiver_alert_required": caregiver_alert_required,
-            "caregiver_alert_result": alert_result,
-            "baseline_comparison": saved_baseline_comparison,
+            "caregiver_alert_result": safe_alert_result_for_logging(alert_result),
+            "baseline_comparison": safe_baseline_comparison_for_logging(saved_baseline_comparison),
         },
     )
 
@@ -570,9 +573,9 @@ async def baseline_voice_response(
             "call_sid": call_sid,
             "from_number": from_number,
             "to_number": to_number,
-            "speech_result": speech_result,
             "speech_confidence": confidence,
-            "baseline_saved": baseline,
+            "baseline_captured": baseline is not None,
+            "baseline_status": baseline.get("status") if baseline else None,
         },
     )
 
@@ -672,7 +675,7 @@ async def twilio_status_callback(request: Request):
 
             safe_log_event(
                 "Missed or Incomplete Check-In Caregiver Alert Result",
-                no_answer_alert_result,
+                safe_alert_result_for_logging(no_answer_alert_result),
             )
 
         else:
