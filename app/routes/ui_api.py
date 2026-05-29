@@ -14,6 +14,8 @@ from app.services.operational_status_service import operational_status_service
 
 from app.services.demographics_service import demographics_service
 
+from app.services.timeline_service import timeline_service
+
 router = APIRouter(prefix="/ui-api", tags=["UI API"])
 
 
@@ -566,7 +568,7 @@ def _priorities(seniors: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
-def _timeline() -> list[dict[str, Any]]:
+def _fallback_timeline() -> list[dict[str, Any]]:
     return [
         {
             "id": "timeline-1",
@@ -614,7 +616,6 @@ def _timeline() -> list[dict[str, Any]]:
             "status": "success",
         },
     ]
-
 
 def _heat_check(senior: dict[str, Any]) -> dict[str, Any]:
     return {
@@ -741,9 +742,19 @@ def get_ui_senior(senior_id: str):
 
     for senior in seniors:
         if str(senior["id"]) == senior_id or _slugify(senior["name"]) == senior_id:
+            timeline = None
+
+            try:
+                timeline = timeline_service.get_timeline_for_senior(
+                    senior_id=int(senior["id"]),
+                    limit=20,
+                )
+            except (TypeError, ValueError):
+                timeline = None
+
             return {
                 "senior": senior,
-                "timeline": _timeline(),
+                "timeline": timeline or _fallback_timeline(),
             }
 
     raise HTTPException(status_code=404, detail="Senior not found.")

@@ -115,6 +115,8 @@ export interface TimelineItem {
   time: string;
   date: string;
   status?: "success" | "missed" | "info";
+  occurredAt?: string | null;
+  metadata?: Record<string, unknown>;
 }
 
 export interface DashboardSummary {
