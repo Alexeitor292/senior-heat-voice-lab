@@ -470,13 +470,14 @@ export function OperationsDashboard({
               className="flex items-center justify-between px-4 py-3.5"
               style={{ borderBottom: "1px solid #F1F5F9" }}
             >
-              <h2
-                className="font-semibold flex items-center gap-2"
+              <Link
+                href="/actions"
+                className="font-semibold flex items-center gap-2 transition-interactive hover:text-brand-blue"
                 style={{ fontSize: 13, color: "#071D3A" }}
               >
                 <ClipboardList size={14} />
                 Pending Actions
-              </h2>
+              </Link>
               <span className="label-caps">
                 {pendingOperatorActions.length}
               </span>

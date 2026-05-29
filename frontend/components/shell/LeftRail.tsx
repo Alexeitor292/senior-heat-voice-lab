@@ -11,12 +11,14 @@ import {
   Settings,
   Activity,
   Wifi,
+  ClipboardList,
 } from "lucide-react";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/seniors",   label: "Seniors",   icon: Users },
   { href: "/map",       label: "Map",        icon: Map },
+  { href: "/actions",   label: "Actions",    icon: ClipboardList },
   { href: "/heat-checks/live-eleanor", label: "Heat Checks", icon: PhoneCall },
   { href: "/alerts",    label: "Alerts",     icon: Bell },
 ];
