@@ -123,17 +123,25 @@ def _matched_patterns(text: str, patterns: list[str]) -> list[str]:
     return [pattern for pattern in patterns if pattern in text]
 
 
-def _extract_possible_names(text: str) -> list[str]:
-    # Simple prototype extractor. Later this should be replaced by LLM memory extraction.
-    candidates = re.findall(r"\b[A-Z][a-z]{2,}\b", text)
+def _extract_possible_names(turns: list[TranscriptTurnInput]) -> list[str]:
+    # Prototype-only extractor.
+    # Only inspect senior/user turns so assistant greetings do not become memories.
+    senior_text = " ".join(
+        turn.text
+        for turn in turns
+        if (turn.speaker or "").lower().strip() in {"senior", "user", "caller"}
+    )
+
+    candidates = re.findall(r"\b[A-Z][a-z]{2,}\b", senior_text)
+
     ignored = {
-        "I",
         "The",
-        "A",
-        "An",
-        "It",
+        "This",
+        "That",
+        "There",
         "Today",
         "Yesterday",
+        "Tomorrow",
         "Monday",
         "Tuesday",
         "Wednesday",
@@ -141,6 +149,24 @@ def _extract_possible_names(text: str) -> list[str]:
         "Friday",
         "Saturday",
         "Sunday",
+        "How",
+        "Are",
+        "Also",
+        "And",
+        "But",
+        "Because",
+        "Okay",
+        "Hi",
+        "Hello",
+        "Thanks",
+        "Thank",
+        "Yes",
+        "No",
+        "Maybe",
+        "Really",
+        "Just",
+        "Little",
+        "Very",
     }
 
     unique = []
@@ -289,7 +315,7 @@ def analyze_conversation(
     if routine_signals:
         topics.append("sleep, food, or routine")
 
-    possible_names = _extract_possible_names(original_text)
+    possible_names = _extract_possible_names(turns)
 
     for name in possible_names:
         topics.append(name)
