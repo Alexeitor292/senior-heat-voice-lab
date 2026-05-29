@@ -13,6 +13,7 @@ from app.routes.schedules import router as schedules_router
 from app.routes.seniors import router as seniors_router
 from app.routes.twilio_webhooks import router as twilio_router
 from app.security.basic_auth import BasicDashboardAuthMiddleware
+from app.security.twilio_signature import TwilioSignatureValidationMiddleware
 from app.services.checkin_store_service import checkin_store_service
 from app.services.profile_service import profile_service
 
@@ -32,6 +33,7 @@ app = FastAPI(
 )
 
 app.add_middleware(BasicDashboardAuthMiddleware)
+app.add_middleware(TwilioSignatureValidationMiddleware)
 
 app.mount(
     "/ui",
@@ -56,6 +58,7 @@ def root():
         "status": "running",
         "dashboard_ui": "/ui",
         "dashboard_auth_enabled": settings.dashboard_auth_enabled,
+        "twilio_signature_validation_enabled": settings.twilio_signature_validation_enabled,
     }
 
 

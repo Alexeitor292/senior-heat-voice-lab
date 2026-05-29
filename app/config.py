@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password: str = "change-me-local-dev"
 
+    twilio_signature_validation_enabled: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
