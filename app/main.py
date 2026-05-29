@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -35,11 +36,14 @@ app = FastAPI(
 app.add_middleware(BasicDashboardAuthMiddleware)
 app.add_middleware(TwilioSignatureValidationMiddleware)
 
-app.mount(
-    "/ui",
-    StaticFiles(directory="app/static", html=True),
-    name="ui",
-)
+static_dir = Path("app/static")
+
+if static_dir.exists():
+    app.mount(
+        "/ui",
+        StaticFiles(directory=str(static_dir), html=True),
+        name="ui",
+    )
 
 app.include_router(calls_router)
 app.include_router(seniors_router)
