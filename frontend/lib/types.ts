@@ -353,3 +353,18 @@ export interface OperatorActionUpdatePayload {
   target_contact_id?: number | null;
   created_by?: string | null;
 }
+
+export interface OperatorAction {
+  id: number;
+  senior_id: number;
+  senior_name?: string | null;
+  senior_phone_number?: string | null;
+  action_type: OperatorActionType | string;
+  status: OperatorActionStatus | string;
+  reason?: string | null;
+  note?: string | null;
+  target_contact_id?: number | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}

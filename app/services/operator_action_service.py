@@ -6,12 +6,18 @@ from app.db.database import SessionLocal
 from app.db.models import OperatorAction, SeniorProfile
 
 
+PENDING_ACTION_STATUSES = {"requested", "in_progress"}
+
+
 def _iso(value):
     return value.isoformat() if value else None
 
 
-def operator_action_to_dict(row: OperatorAction) -> dict[str, Any]:
-    return {
+def operator_action_to_dict(
+    row: OperatorAction,
+    senior: SeniorProfile | None = None,
+) -> dict[str, Any]:
+    result = {
         "id": row.id,
         "senior_id": row.senior_id,
         "action_type": row.action_type,
@@ -23,6 +29,12 @@ def operator_action_to_dict(row: OperatorAction) -> dict[str, Any]:
         "created_at": _iso(row.created_at),
         "updated_at": _iso(row.updated_at),
     }
+
+    if senior is not None:
+        result["senior_name"] = senior.name
+        result["senior_phone_number"] = senior.phone_number
+
+    return result
 
 
 class OperatorActionService:
@@ -51,7 +63,7 @@ class OperatorActionService:
             db.commit()
             db.refresh(action)
 
-            return operator_action_to_dict(action)
+            return operator_action_to_dict(action, senior)
 
     def list_actions_for_senior(
         self,
@@ -72,7 +84,26 @@ class OperatorActionService:
                 .all()
             )
 
-            return [operator_action_to_dict(row) for row in rows]
+            return [operator_action_to_dict(row, senior) for row in rows]
+
+    def list_pending_actions(
+        self,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        with SessionLocal() as db:
+            rows = (
+                db.query(OperatorAction, SeniorProfile)
+                .join(SeniorProfile, OperatorAction.senior_id == SeniorProfile.id)
+                .filter(OperatorAction.status.in_(PENDING_ACTION_STATUSES))
+                .order_by(OperatorAction.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+
+            return [
+                operator_action_to_dict(action, senior)
+                for action, senior in rows
+            ]
 
     def update_action(
         self,
@@ -100,7 +131,9 @@ class OperatorActionService:
             db.commit()
             db.refresh(action)
 
-            return operator_action_to_dict(action)
+            senior = db.get(SeniorProfile, action.senior_id)
+
+            return operator_action_to_dict(action, senior)
 
 
 operator_action_service = OperatorActionService()

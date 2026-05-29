@@ -16,6 +16,7 @@ export default async function DashboardPage() {
         schedule={dashboard.schedule}
         priorities={dashboard.priorities}
         trendData={dashboard.trendData}
+        pendingOperatorActions={dashboard.pendingOperatorActions}
       />
     </AppShell>
   );

@@ -68,6 +68,13 @@ def list_operator_actions(
         "items": result,
     }
 
+@router.get("/operator-actions/pending")
+def list_pending_operator_actions(
+    limit: int = Query(default=50, ge=1, le=100),
+):
+    return {
+        "items": operator_action_service.list_pending_actions(limit=limit),
+    }
 
 @router.patch("/operator-actions/{action_id}")
 def update_operator_action(

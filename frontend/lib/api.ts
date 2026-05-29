@@ -263,15 +263,30 @@ export async function getDashboardView(): Promise<{
   schedule: ScheduleItem[];
   alerts: Alert[];
   trendData: HeatTrendPoint[];
+  pendingOperatorActions: OperatorAction[];
 }> {
   try {
-    return await apiFetch<{
+    const dashboard = await apiFetch<{
       summary: DashboardSummary;
       priorities: PriorityItem[];
       schedule: ScheduleItem[];
       alerts: Alert[];
       trendData: HeatTrendPoint[];
     }>("/ui-api/dashboard");
+
+    let pendingOperatorActions: OperatorAction[] = [];
+
+    try {
+      const pending = await getPendingOperatorActions();
+      pendingOperatorActions = pending.items ?? [];
+    } catch {
+      pendingOperatorActions = [];
+    }
+
+    return {
+      ...dashboard,
+      pendingOperatorActions,
+    };
   } catch {
     return {
       summary: MOCK_DASHBOARD_SUMMARY,
@@ -279,6 +294,7 @@ export async function getDashboardView(): Promise<{
       schedule: MOCK_SCHEDULE,
       alerts: MOCK_ALERTS,
       trendData: HEAT_TREND_DATA,
+      pendingOperatorActions: [],
     };
   }
 }
@@ -367,4 +383,10 @@ export async function updateOperatorAction(
       body: payload,
     }
   );
+}
+
+export async function getPendingOperatorActions(): Promise<{
+  items: OperatorAction[];
+}> {
+  return apiFetch<{ items: OperatorAction[] }>("/operator-actions/pending");
 }
