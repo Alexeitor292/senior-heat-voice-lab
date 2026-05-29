@@ -59,6 +59,42 @@ class CaregiverProfile(Base):
     )
 
 
+class CheckInSchedule(Base):
+    __tablename__ = "check_in_schedules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    name: Mapped[str] = mapped_column(String(120), default="Default heat check-in schedule")
+
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # 24-hour local time for the senior, example: "15:00"
+    time_of_day: Mapped[str] = mapped_column(String(10), nullable=False)
+
+    # IANA timezone, example: "America/Los_Angeles"
+    timezone: Mapped[str] = mapped_column(String(80), default="America/Los_Angeles")
+
+    # JSON list of integers.
+    # Monday = 0, Tuesday = 1, ..., Sunday = 6
+    days_of_week_json: Mapped[str] = mapped_column(Text, default="[0,1,2,3,4,5,6]")
+
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_run_status: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
 class CheckInCallSession(Base):
     __tablename__ = "check_in_call_sessions"
 

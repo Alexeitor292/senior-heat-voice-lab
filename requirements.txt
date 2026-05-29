@@ -6,3 +6,4 @@ pydantic-settings==2.7.1
 python-multipart==0.0.20
 openai>=1.55.0
 SQLAlchemy==2.0.36
+tzdata==2025.2

@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.config import settings
 from app.db.database import init_db
 from app.routes.calls import router as calls_router
+from app.routes.schedules import router as schedules_router
 from app.routes.seniors import router as seniors_router
 from app.routes.twilio_webhooks import router as twilio_router
 from app.services.checkin_store_service import checkin_store_service
@@ -27,6 +28,7 @@ app = FastAPI(
 
 app.include_router(calls_router)
 app.include_router(seniors_router)
+app.include_router(schedules_router)
 app.include_router(twilio_router)
 
 
