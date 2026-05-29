@@ -17,6 +17,9 @@ import type {
   SeniorDemographics,
   SeniorDemographicsPayload,
   StartHeatCheckResponse,
+  OperatorAction,
+  OperatorActionPayload,
+  OperatorActionUpdatePayload,
 } from "./types";
 import {
   MOCK_SENIORS,
@@ -330,4 +333,38 @@ export async function startHeatCheck(
     callSid: data.callSid ?? data.call_sid,
     nextStep: data.nextStep ?? data.next_step,
   };
+}
+
+export async function createOperatorAction(
+  seniorId: string | number,
+  payload: OperatorActionPayload
+): Promise<{ message: string; action: OperatorAction }> {
+  return apiSend<{ message: string; action: OperatorAction }>(
+    `/seniors/${seniorId}/operator-actions`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function getOperatorActions(
+  seniorId: string | number
+): Promise<{ senior_id: number; items: OperatorAction[] }> {
+  return apiFetch<{ senior_id: number; items: OperatorAction[] }>(
+    `/seniors/${seniorId}/operator-actions`
+  );
+}
+
+export async function updateOperatorAction(
+  actionId: string | number,
+  payload: OperatorActionUpdatePayload
+): Promise<{ message: string; action: OperatorAction }> {
+  return apiSend<{ message: string; action: OperatorAction }>(
+    `/operator-actions/${actionId}`,
+    {
+      method: "PATCH",
+      body: payload,
+    }
+  );
 }

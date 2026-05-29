@@ -4,7 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, MessageSquare, PhoneCall } from "lucide-react";
 import { ActionButton } from "@/components/ui/ActionButton";
-import { startHeatCheck } from "@/lib/api";
+import {
+  createOperatorAction,
+  startHeatCheck,
+} from "@/lib/api";
 import type { Senior } from "@/lib/types";
 
 const CARD_SHADOW = "0 0 0 1px #E8EDF3, 0 1px 3px 0 rgb(7 29 58 / 0.05)";
@@ -13,6 +16,9 @@ export function SeniorActionPanel({ senior }: { senior: Senior }) {
   const router = useRouter();
 
   const [startingCall, setStartingCall] = useState(false);
+  const [dispatchingWellness, setDispatchingWellness] = useState(false);
+  const [note, setNote] = useState("");
+
   const [success, setSuccess] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +46,39 @@ export function SeniorActionPanel({ senior }: { senior: Senior }) {
       );
     } finally {
       setStartingCall(false);
+    }
+  }
+
+  async function handleDispatchWellnessCheck() {
+    setDispatchingWellness(true);
+    setSuccess(null);
+    setDetail(null);
+    setError(null);
+
+    try {
+      const reason =
+        senior.recommendedAction ||
+        `${senior.status} status with ${senior.heatRisk} heat risk`;
+
+      const result = await createOperatorAction(senior.id, {
+        action_type: "wellness_check",
+        status: "requested",
+        reason,
+        note: note.trim() || null,
+        created_by: "operator",
+      });
+
+      setSuccess("Wellness check requested.");
+      setDetail(`Action ID: ${result.action.id}`);
+      setNote("");
+
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to request wellness check."
+      );
+    } finally {
+      setDispatchingWellness(false);
     }
   }
 
@@ -115,17 +154,39 @@ export function SeniorActionPanel({ senior }: { senior: Senior }) {
         Message Support
       </ActionButton>
 
-      <ActionButton
-        type="button"
-        variant="warning"
-        size="sm"
-        className="w-full justify-center gap-2"
-        disabled
-        title="Wellness check dispatch will be wired in the next milestone."
-      >
-        <FileText size={13} />
-        Dispatch Wellness Check
-      </ActionButton>
+      <div className="space-y-2">
+        <textarea
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          rows={3}
+          placeholder="Optional note for wellness check..."
+          style={{
+            width: "100%",
+            border: "1px solid #D8E0EA",
+            borderRadius: 8,
+            padding: "8px 9px",
+            fontSize: 12.5,
+            color: "#071D3A",
+            background: "white",
+            outline: "none",
+            resize: "vertical",
+          }}
+        />
+
+        <ActionButton
+          type="button"
+          variant="warning"
+          size="sm"
+          className="w-full justify-center gap-2"
+          disabled={dispatchingWellness}
+          onClick={handleDispatchWellnessCheck}
+        >
+          <FileText size={13} />
+          {dispatchingWellness
+            ? "Requesting..."
+            : "Dispatch Wellness Check"}
+        </ActionButton>
+      </div>
     </div>
   );
 }

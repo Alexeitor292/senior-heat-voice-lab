@@ -310,3 +310,46 @@ export interface StartHeatCheckResponse {
   next_step?: string;
   session?: unknown;
 }
+
+export type OperatorActionType =
+  | "call_senior"
+  | "message_support"
+  | "wellness_check"
+  | "operator_review";
+
+export type OperatorActionStatus =
+  | "requested"
+  | "in_progress"
+  | "completed"
+  | "canceled"
+  | "failed";
+
+export interface OperatorAction {
+  id: number;
+  senior_id: number;
+  action_type: OperatorActionType | string;
+  status: OperatorActionStatus | string;
+  reason?: string | null;
+  note?: string | null;
+  target_contact_id?: number | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface OperatorActionPayload {
+  action_type: OperatorActionType | string;
+  status?: OperatorActionStatus | string;
+  reason?: string | null;
+  note?: string | null;
+  target_contact_id?: number | null;
+  created_by?: string | null;
+}
+
+export interface OperatorActionUpdatePayload {
+  status?: OperatorActionStatus | string;
+  reason?: string | null;
+  note?: string | null;
+  target_contact_id?: number | null;
+  created_by?: string | null;
+}

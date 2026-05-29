@@ -210,6 +210,45 @@ class EscalationStep(Base):
         onupdate=utc_now,
     )
 
+class OperatorAction(Base):
+    __tablename__ = "operator_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    # Examples:
+    # call_senior, message_support, wellness_check, operator_review
+    action_type: Mapped[str] = mapped_column(String(60), index=True, nullable=False)
+
+    # Examples:
+    # requested, in_progress, completed, canceled, failed
+    status: Mapped[str] = mapped_column(String(40), index=True, default="requested")
+
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    target_contact_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("support_contacts.id"),
+        index=True,
+        nullable=True,
+    )
+
+    created_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
 class CheckInSchedule(Base):
     __tablename__ = "check_in_schedules"
 

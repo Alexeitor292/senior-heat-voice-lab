@@ -19,6 +19,7 @@ from app.routes.support_network import router as support_network_router
 from app.routes.operational_status import router as operational_status_router
 from app.routes.demographics import router as demographics_router
 from app.routes.timeline import router as timeline_router
+from app.routes.operator_actions import router as operator_actions_router
 from app.security.basic_auth import BasicDashboardAuthMiddleware
 from app.security.twilio_signature import TwilioSignatureValidationMiddleware
 from app.services.checkin_store_service import checkin_store_service
@@ -75,6 +76,7 @@ app.include_router(baselines_router)
 app.include_router(dashboard_router)
 app.include_router(operational_status_router)
 app.include_router(timeline_router)
+app.include_router(operator_actions_router)
 app.include_router(twilio_router)
 app.include_router(ui_api_router)
 

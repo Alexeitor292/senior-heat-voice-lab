@@ -10,6 +10,7 @@ from app.db.models import (
     EscalationPlan,
     EscalationStep,
     HeatRiskObservation,
+    OperatorAction,
     SeniorProfile,
     SupportContact,
 )
@@ -202,6 +203,56 @@ def _should_include_call_session(
 
     # Unknown statuses can stay visible for debugging until we understand them.
     return bool(status)
+
+def _operator_action_status(status: str | None) -> str:
+    normalized = (status or "").lower().strip()
+
+    if normalized in {"completed", "resolved"}:
+        return "success"
+
+    if normalized in {"failed", "canceled", "cancelled"}:
+        return "missed"
+
+    return "info"
+
+
+def _operator_action_title(row: OperatorAction) -> str:
+    action_type = (row.action_type or "").lower().strip()
+
+    if action_type == "wellness_check":
+        if row.status == "completed":
+            return "Wellness check completed"
+        if row.status in {"canceled", "cancelled"}:
+            return "Wellness check canceled"
+        return "Wellness check requested"
+
+    if action_type == "message_support":
+        if row.status == "completed":
+            return "Support contact reached"
+        return "Support outreach requested"
+
+    if action_type == "operator_review":
+        return "Operator review requested"
+
+    if action_type == "call_senior":
+        return "Senior call requested"
+
+    return "Operator action recorded"
+
+
+def _operator_action_description(row: OperatorAction) -> str:
+    parts = []
+
+    if row.reason:
+        parts.append(f"Reason: {row.reason}")
+
+    if row.note:
+        parts.append(f"Note: {row.note}")
+
+    if row.status:
+        parts.append(f"Status: {row.status}")
+
+    return ". ".join(parts) + "." if parts else "Operator action recorded."
 
 
 class TimelineService:
@@ -413,6 +464,34 @@ class TimelineService:
                             },
                         )
                     )
+            
+            operator_actions = (
+                db.query(OperatorAction)
+                .filter(OperatorAction.senior_id == senior_id)
+                .order_by(OperatorAction.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+
+            for row in operator_actions:
+                events.append(
+                    _event(
+                        event_id=f"operator-action-{row.id}",
+                        event_type="note",
+                        title=_operator_action_title(row),
+                        description=_operator_action_description(row),
+                        occurred_at=row.created_at,
+                        status=_operator_action_status(row.status),
+                        metadata={
+                            "actionType": row.action_type,
+                            "actionStatus": row.status,
+                            "reason": row.reason,
+                            "note": row.note,
+                            "targetContactId": row.target_contact_id,
+                            "createdBy": row.created_by,
+                        },
+                    )
+                )
 
             events.sort(
                 key=lambda item: item.get("occurredAt") or "",
