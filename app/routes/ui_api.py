@@ -747,7 +747,7 @@ def get_ui_senior(senior_id: str):
             try:
                 timeline = timeline_service.get_timeline_for_senior(
                     senior_id=int(senior["id"]),
-                    limit=20,
+                    limit=12,
                 )
             except (TypeError, ValueError):
                 timeline = None

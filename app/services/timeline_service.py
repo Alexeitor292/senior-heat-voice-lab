@@ -157,6 +157,52 @@ def _heat_title(value: int | None, label: str | None) -> str:
 
     return "Low heat risk observed"
 
+def _should_include_call_session(
+    row: CheckInCallSession,
+    check_in_call_sids: set[str],
+) -> bool:
+    """
+    Raw Twilio call sessions are useful only when they explain an exception.
+
+    If a CheckIn exists for the same Call SID, the CheckIn event is more useful.
+    Successful/completed call sessions without a check-in usually clutter the
+    senior activity feed, so hide them from the main UI timeline.
+    """
+    if row.senior_call_sid and row.senior_call_sid in check_in_call_sids:
+        return False
+
+    status = (row.status or "").lower().strip()
+
+    notable_failure_terms = [
+        "failed",
+        "no-answer",
+        "busy",
+        "canceled",
+        "cancelled",
+        "missed",
+        "undelivered",
+    ]
+
+    if any(term in status for term in notable_failure_terms):
+        return True
+
+    # Hide routine Twilio lifecycle events from the human-facing activity feed.
+    routine_terms = [
+        "completed",
+        "call_started",
+        "started",
+        "queued",
+        "ringing",
+        "initiated",
+        "in-progress",
+    ]
+
+    if any(term in status for term in routine_terms):
+        return False
+
+    # Unknown statuses can stay visible for debugging until we understand them.
+    return bool(status)
+
 
 class TimelineService:
     def get_timeline_for_senior(
@@ -179,6 +225,12 @@ class TimelineService:
                 .limit(limit)
                 .all()
             )
+
+            check_in_call_sids = {
+                row.senior_call_sid
+                for row in check_ins
+                if row.senior_call_sid
+            }
 
             for row in check_ins:
                 events.append(
@@ -210,6 +262,9 @@ class TimelineService:
             )
 
             for row in call_sessions:
+                if not _should_include_call_session(row, check_in_call_sids):
+                    continue
+
                 title = "Check-in call started"
 
                 if row.status and "completed" in row.status.lower():
@@ -364,7 +419,9 @@ class TimelineService:
                 reverse=True,
             )
 
-            return events[:limit]
+            # Keep the senior detail timeline readable.
+            # The full endpoint can still request more with ?limit=50 or ?limit=100.
+            return events[: min(limit, 12)]
 
 
 timeline_service = TimelineService()
