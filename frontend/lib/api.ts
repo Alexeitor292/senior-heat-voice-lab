@@ -21,6 +21,7 @@ import type {
   OperatorActionPayload,
   OperatorActionUpdatePayload,
   OperatorActionStatusFilter,
+  ConversationInsight,
 } from "./types";
 import {
   MOCK_SENIORS,
@@ -142,6 +143,13 @@ export async function getSeniorTimeline(
   }
 }
 
+export async function getConversationInsights(
+  seniorId: string | number
+): Promise<{ senior_id: number; items: ConversationInsight[] }> {
+  return apiFetch<{ senior_id: number; items: ConversationInsight[] }>(
+    `/seniors/${seniorId}/conversation-insights`
+  );
+}
 // Support Network --------------------------------------------------------
 
 export async function getSupportNetwork(

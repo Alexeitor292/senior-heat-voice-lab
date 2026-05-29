@@ -19,6 +19,7 @@ import { HeatSettingsEditor } from "@/components/forms/HeatSettingsEditor";
 import { DemographicsEditor } from "@/components/forms/DemographicsEditor";
 import { SeniorActionPanel } from "@/components/forms/SeniorActionPanel";
 import { OperatorActionQueue } from "@/components/forms/OperatorActionQueue";
+import { ConversationInsightPanel } from "@/components/forms/ConversationInsightPanel";
 import type { Senior, TimelineItem } from "@/lib/types";
 import { RiskBadge } from "@/components/ui/RiskBadge";
 import { StatusDot } from "@/components/ui/StatusDot";
@@ -173,6 +174,8 @@ export function SeniorDetailView({ senior, timeline }: Props) {
         {/* Left: Timeline */}
         <div className="flex-1 min-w-0 space-y-4">
           <OperatorActionQueue senior={senior} />
+
+          <ConversationInsightPanel senior={senior} />
 
           <div className="rounded-xl overflow-hidden" style={{ background: "white", boxShadow: CARD_SHADOW }}>
             <div className="px-5 py-4" style={{ borderBottom: "1px solid #F1F5F9" }}>
