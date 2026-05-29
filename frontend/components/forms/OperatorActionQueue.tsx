@@ -12,12 +12,14 @@ import {
 import { ActionButton } from "@/components/ui/ActionButton";
 import {
   getOperatorActions,
+  getSupportNetwork,
   updateOperatorAction,
 } from "@/lib/api";
 import type {
   OperatorAction,
   OperatorActionStatus,
   Senior,
+  SupportContact,
 } from "@/lib/types";
 
 const CARD_SHADOW = "0 0 0 1px #E8EDF3, 0 1px 3px 0 rgb(7 29 58 / 0.05)";
@@ -82,10 +84,40 @@ function statusBadgeStyle(status: string): React.CSSProperties {
   };
 }
 
+function contactKey(value: string | number | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+
+  return String(value);
+}
+
+function buildContactLookup(contacts: SupportContact[]) {
+  const lookup = new Map<string, SupportContact>();
+
+  for (const contact of contacts) {
+    const key = contactKey(contact.id);
+
+    if (key) {
+      lookup.set(key, contact);
+    }
+  }
+
+  return lookup;
+}
+
+function formatContactLabel(contact: SupportContact): string {
+  const relationship = contact.relationship || contact.contact_type;
+
+  return `${contact.name}${relationship ? ` (${relationship})` : ""}`;
+}
+
 export function OperatorActionQueue({ senior }: { senior: Senior }) {
   const router = useRouter();
 
   const [actions, setActions] = useState<OperatorAction[]>([]);
+  const [contactLookup, setContactLookup] = useState<Map<string, SupportContact>>(
+    new Map()
+  );
+
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,8 +127,15 @@ export function OperatorActionQueue({ senior }: { senior: Senior }) {
     setError(null);
 
     try {
-      const data = await getOperatorActions(senior.id);
-      setActions(data.items ?? []);
+      const [actionsData, supportNetwork] = await Promise.all([
+        getOperatorActions(senior.id),
+        getSupportNetwork(senior.id),
+      ]);
+
+      setActions(actionsData.items ?? []);
+      setContactLookup(
+        buildContactLookup(supportNetwork.support_contacts ?? [])
+      );
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to load pending actions."
@@ -224,6 +263,11 @@ export function OperatorActionQueue({ senior }: { senior: Senior }) {
         {!loading &&
           pendingActions.map((action) => {
             const isUpdating = updatingId === action.id;
+            const targetContact =
+              action.target_contact_id !== null &&
+              action.target_contact_id !== undefined
+                ? contactLookup.get(String(action.target_contact_id))
+                : null;
 
             return (
               <div
@@ -288,9 +332,11 @@ export function OperatorActionQueue({ senior }: { senior: Senior }) {
                       style={{ fontSize: 11, color: "#94A8BC" }}
                     >
                       Created {formatCreatedAt(action.created_at)}
-                      {action.target_contact_id
-                        ? ` • Contact ID ${action.target_contact_id}`
-                        : ""}
+                      {targetContact
+                        ? ` • Contact ${formatContactLabel(targetContact)}`
+                        : action.target_contact_id
+                          ? ` • Contact ID ${action.target_contact_id}`
+                          : ""}
                     </p>
                   </div>
                 </div>

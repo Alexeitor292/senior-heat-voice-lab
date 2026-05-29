@@ -25,16 +25,19 @@ function selectPrimarySupportContact(
 ): SupportContact | null {
   const activeContacts = contacts.filter((contact) => contact.is_active);
 
-  const alertableContacts = activeContacts.filter(
-    (contact) => contact.can_receive_alerts
-  );
+  if (activeContacts.length === 0) return null;
 
-  const candidates =
-    alertableContacts.length > 0 ? alertableContacts : activeContacts;
+  return [...activeContacts].sort((a, b) => {
+    if (a.is_emergency_contact !== b.is_emergency_contact) {
+      return a.is_emergency_contact ? -1 : 1;
+    }
 
-  if (candidates.length === 0) return null;
+    if (a.can_receive_alerts !== b.can_receive_alerts) {
+      return a.can_receive_alerts ? -1 : 1;
+    }
 
-  return [...candidates].sort((a, b) => a.priority - b.priority)[0];
+    return a.priority - b.priority;
+  })[0];
 }
 
 export function SeniorActionPanel({ senior }: { senior: Senior }) {
