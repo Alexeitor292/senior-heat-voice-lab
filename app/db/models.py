@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.database import Base
@@ -94,6 +94,84 @@ class CheckInSchedule(Base):
         default=utc_now,
         onupdate=utc_now,
     )
+
+class SeniorHeatSettings(Base):
+    __tablename__ = "senior_heat_settings"
+
+    __table_args__ = (
+        UniqueConstraint("senior_id", name="uq_senior_heat_settings_senior_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    city: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    state: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    zip_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    timezone: Mapped[str] = mapped_column(String(80), default="America/Los_Angeles")
+
+    # Default: call when HeatRisk is Moderate or higher.
+    # 0 = little/no risk, 1 = minor, 2 = moderate, 3 = major, 4 = extreme
+    trigger_threshold: Mapped[int] = mapped_column(Integer, default=2)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
+class HeatRiskObservation(Base):
+    __tablename__ = "heat_risk_observations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+
+    provider: Mapped[str] = mapped_column(String(40), default="manual")
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    heat_risk_value: Mapped[int] = mapped_column(Integer, index=True)
+    heat_risk_label: Mapped[str] = mapped_column(String(40))
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    raw_response_json: Mapped[str] = mapped_column(Text, default="{}")
+
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class HeatTriggeredCall(Base):
+    __tablename__ = "heat_triggered_calls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+
+    local_date: Mapped[str] = mapped_column(String(20), index=True)
+
+    heat_risk_value: Mapped[int] = mapped_column(Integer)
+    heat_risk_label: Mapped[str] = mapped_column(String(40))
+
+    started: Mapped[bool] = mapped_column(Boolean, default=False)
+    senior_call_sid: Mapped[str | None] = mapped_column(String(80), index=True, nullable=True)
+
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 class CheckInCallSession(Base):
     __tablename__ = "check_in_call_sessions"

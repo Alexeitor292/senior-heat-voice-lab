@@ -20,6 +20,10 @@ class Settings(BaseSettings):
 
     scheduler_poll_seconds: int = 60
 
+    heat_risk_provider: str = "manual"
+    manual_heat_risk_value: int = 2
+    nws_user_agent: str = "SeniorHeatVoiceLab/0.1 local-dev"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

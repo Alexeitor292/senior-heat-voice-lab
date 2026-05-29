@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from app.config import settings
 from app.db.database import init_db
 from app.routes.calls import router as calls_router
+from app.routes.heat_risk import router as heat_risk_router
 from app.routes.schedules import router as schedules_router
 from app.routes.seniors import router as seniors_router
 from app.routes.twilio_webhooks import router as twilio_router
@@ -29,6 +30,7 @@ app = FastAPI(
 app.include_router(calls_router)
 app.include_router(seniors_router)
 app.include_router(schedules_router)
+app.include_router(heat_risk_router)
 app.include_router(twilio_router)
 
 
@@ -50,13 +52,6 @@ def health_check():
 
 @app.get("/debug/check-ins")
 def get_recent_check_ins(limit: int = 10):
-    """
-    Temporary dev endpoint.
-
-    Lets us confirm check-ins are being stored.
-    Remove or protect this before any real user data exists.
-    """
-
     return {
         "items": checkin_store_service.get_recent_check_ins(limit=limit)
     }
@@ -64,13 +59,6 @@ def get_recent_check_ins(limit: int = 10):
 
 @app.get("/debug/call-sessions")
 def get_recent_call_sessions(limit: int = 10):
-    """
-    Temporary dev endpoint.
-
-    Lets us confirm profile-based call sessions are being stored.
-    Remove or protect this before any real user data exists.
-    """
-
     return {
         "items": profile_service.list_recent_call_sessions(limit=limit)
     }
