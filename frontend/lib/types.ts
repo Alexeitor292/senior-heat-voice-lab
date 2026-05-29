@@ -27,6 +27,9 @@ export interface Senior {
   state: string;
   lat: number;
   lng: number;
+  zipCode?: string | null;
+  timezone?: string;
+  hasRealHeatSettings?: boolean;
   phone?: string;
   address?: string;
   preferredContactTime?: string;

@@ -8,6 +8,8 @@ from app.services.profile_service import profile_service
 
 from app.services.support_network_service import support_network_service
 
+from app.services.heat_risk_service import heat_risk_service
+
 router = APIRouter(prefix="/ui-api", tags=["UI API"])
 
 
@@ -280,6 +282,92 @@ def _support_context_for_senior(
         "escalationPlanSummary": escalation_summary,
     }
 
+def _coerce_numeric_senior_id(raw: dict[str, Any]) -> int | None:
+    raw_id = raw.get("id")
+
+    try:
+        return int(raw_id)
+    except (TypeError, ValueError):
+        return None
+
+
+def _city_state_label(city: str | None, state: str | None) -> str | None:
+    if city and state:
+        return f"{city}, {state}"
+
+    if city:
+        return city
+
+    if state:
+        return state
+
+    return None
+
+
+def _heat_settings_context_for_senior(
+    raw: dict[str, Any],
+    fallback_location: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Prefer real SeniorHeatSettings for map/detail location fields.
+
+    Fallback DISPLAY_LOCATIONS should only be used for demo seniors or real
+    seniors that have not had heat settings configured yet.
+    """
+    senior_id = _coerce_numeric_senior_id(raw)
+
+    fallback = {
+        "city": fallback_location["city"],
+        "state": fallback_location["state"],
+        "zipCode": None,
+        "location": fallback_location["location"],
+        "lat": fallback_location["lat"],
+        "lng": fallback_location["lng"],
+        "timezone": "America/Los_Angeles",
+        "address": f"Location on file: {fallback_location['location']}",
+        "hasRealHeatSettings": False,
+    }
+
+    if senior_id is None:
+        return fallback
+
+    heat_settings = heat_risk_service.get_heat_settings(senior_id)
+
+    if not heat_settings:
+        return fallback
+
+    city = heat_settings.get("city") or fallback["city"]
+    state = heat_settings.get("state") or fallback["state"]
+    zip_code = heat_settings.get("zip_code")
+
+    location_label = _city_state_label(city, state) or fallback["location"]
+
+    latitude = heat_settings.get("latitude")
+    longitude = heat_settings.get("longitude")
+
+    # The map requires lat/lng. If one is missing, keep fallback coordinates
+    # but still use the real city/state text.
+    if latitude is None or longitude is None:
+        latitude = fallback["lat"]
+        longitude = fallback["lng"]
+
+    address_parts = [location_label]
+
+    if zip_code:
+        address_parts.append(str(zip_code))
+
+    return {
+        "city": city,
+        "state": state,
+        "zipCode": zip_code,
+        "location": location_label,
+        "lat": latitude,
+        "lng": longitude,
+        "timezone": heat_settings.get("timezone") or fallback["timezone"],
+        "address": " ".join(address_parts),
+        "hasRealHeatSettings": True,
+    }
+
 def _real_seniors_or_mock() -> list[dict[str, Any]]:
     real_seniors = profile_service.list_seniors()
 
@@ -300,8 +388,9 @@ def _real_seniors_or_mock() -> list[dict[str, Any]]:
 
 
 def _display_senior(raw: dict[str, Any], index: int) -> dict[str, Any]:
-    location = DISPLAY_LOCATIONS[index % len(DISPLAY_LOCATIONS)]
-    support_context = _support_context_for_senior(raw, location)
+    fallback_location = DISPLAY_LOCATIONS[index % len(DISPLAY_LOCATIONS)]
+    support_context = _support_context_for_senior(raw, fallback_location)
+    heat_context = _heat_settings_context_for_senior(raw, fallback_location)
 
     name = raw.get("name") or FALLBACK_NAMES[index % len(FALLBACK_NAMES)]
     senior_id = raw.get("id") or _slugify(name)
@@ -309,25 +398,36 @@ def _display_senior(raw: dict[str, Any], index: int) -> dict[str, Any]:
     return {
         "id": senior_id,
         "name": name,
-        "age": location["age"],
-        "gender": location["gender"],
-        "location": location["location"],
-        "city": location["city"],
-        "state": location["state"],
-        "lat": location["lat"],
-        "lng": location["lng"],
+        "age": fallback_location["age"],
+        "gender": fallback_location["gender"],
+
+        # Real location fields come from SeniorHeatSettings when available.
+        "location": heat_context["location"],
+        "city": heat_context["city"],
+        "state": heat_context["state"],
+        "zipCode": heat_context["zipCode"],
+        "lat": heat_context["lat"],
+        "lng": heat_context["lng"],
+        "timezone": heat_context["timezone"],
+        "hasRealHeatSettings": heat_context["hasRealHeatSettings"],
+
         "phone": raw.get("phone_number") or "(555) 555-0198",
-        "address": f"1234 Desert View Dr, {location['location']} 85016",
-        "preferredContactTime": "9:00 AM – 7:00 PM",
+        "address": heat_context["address"],
+        "preferredContactTime": "9:00 AM - 7:00 PM",
         "medicalNotes": raw.get("notes")
         or "Monitor hydration, heat exposure, and unusual fatigue.",
         "emergencyContact": "See support network",
-        "heatRisk": location["heatRisk"],
-        "status": location["status"],
+
+        # Risk/status still fall back to demo display data for now.
+        # Next milestone can pull latest HeatRiskObservation.
+        "heatRisk": fallback_location["heatRisk"],
+        "status": fallback_location["status"],
         "latestCheckIn": "Today, 10:18 AM",
         "assignedCaregiver": support_context["assignedSupport"],
-        "recommendedAction": location["recommendedAction"],
+        "recommendedAction": fallback_location["recommendedAction"],
         "isActive": raw.get("is_active", True),
+
+        # Real support-network fields come from EscalationPlan/SupportContact when available.
         "livingSituation": support_context["livingSituation"],
         "supportMode": support_context["supportMode"],
         "supportContactCount": support_context["supportContactCount"],
