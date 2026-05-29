@@ -9,6 +9,7 @@ from app.services.alert_service import alert_service
 from app.services.checkin_store_service import checkin_store_service
 from app.services.profile_service import profile_service
 from app.services.risk_analysis_service import risk_analysis_service
+from app.services.voice_baseline_service import voice_baseline_service
 
 router = APIRouter(prefix="/twilio", tags=["Twilio Webhooks"])
 
@@ -434,6 +435,112 @@ async def caregiver_alert_voice(alert_id: str):
         media_type="application/xml"
     )
 
+@router.post("/voice/baseline")
+async def baseline_voice(
+    request: Request,
+    senior_id: int | None = None,
+):
+    """
+    Baseline voice sample collection call.
+
+    Twilio calls this endpoint when the senior answers the baseline call.
+    """
+
+    form = parse_twilio_form(await request.body())
+    call_sid = form.get("CallSid")
+
+    prompt_text = voice_baseline_service.get_prompt_for_call_sid(call_sid)
+
+    response = VoiceResponse()
+
+    action_url = (
+        f"{settings.public_base_url.rstrip()}"
+        "/twilio/voice/baseline-response"
+    )
+
+    if senior_id is not None:
+        action_url = f"{action_url}?senior_id={senior_id}"
+
+    gather = response.gather(
+        input="speech",
+        timeout=5,
+        speech_timeout="auto",
+        language="en-US",
+        action=action_url,
+        method="POST",
+    )
+
+    gather.say(
+        "Hello. This is a baseline voice sample collection test. "
+        "This is not a medical check-in. "
+        "We are collecting a normal healthy voice sample for future comparison."
+    )
+
+    response.pause(length=1)
+
+    gather.say(prompt_text)
+
+    response.say(
+        "We did not receive a spoken baseline sample. "
+        "Please try again later. Goodbye."
+    )
+
+    return Response(
+        content=str(response),
+        media_type="application/xml",
+    )
+
+
+@router.post("/voice/baseline-response")
+async def baseline_voice_response(
+    request: Request,
+    senior_id: int | None = None,
+):
+    """
+    Twilio sends the baseline speech transcript here as SpeechResult.
+    """
+
+    form = parse_twilio_form(await request.body())
+
+    call_sid = form.get("CallSid")
+    speech_result = form.get("SpeechResult") or ""
+    confidence = form.get("Confidence")
+    from_number = form.get("From")
+    to_number = form.get("To")
+
+    baseline = voice_baseline_service.mark_baseline_captured(
+        baseline_call_sid=call_sid,
+        transcript=speech_result,
+        speech_confidence=confidence,
+    )
+
+    print("\nBaseline Voice Response")
+    print("-----------------------")
+    print(f"Senior ID: {senior_id}")
+    print(f"Call SID: {call_sid}")
+    print(f"From: {from_number}")
+    print(f"To: {to_number}")
+    print(f"SpeechResult: {speech_result}")
+    print(f"Confidence: {confidence}")
+    print(f"Baseline saved: {baseline}")
+
+    response = VoiceResponse()
+
+    if speech_result:
+        response.say(
+            "Thank you. We captured your baseline voice sample. "
+            "This baseline collection test is complete. Goodbye."
+        )
+    else:
+        response.say(
+            "Thank you. We were not able to clearly capture the baseline voice sample. "
+            "Please try again later. Goodbye."
+        )
+
+    return Response(
+        content=str(response),
+        media_type="application/xml",
+    )
 
 @router.post("/status")
 async def twilio_status_callback(request: Request):
@@ -464,6 +571,12 @@ async def twilio_status_callback(request: Request):
 
     checkin_store_service.update_call_status_by_sid(
         call_sid=call_sid,
+        call_status=call_status,
+        call_duration=call_duration,
+    )
+
+    voice_baseline_service.update_baseline_call_status_by_sid(
+        baseline_call_sid=call_sid,
         call_status=call_status,
         call_duration=call_duration,
     )

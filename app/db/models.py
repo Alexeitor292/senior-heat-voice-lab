@@ -133,6 +133,39 @@ class SeniorHeatSettings(Base):
         onupdate=utc_now,
     )
 
+class VoiceBaselineSample(Base):
+    __tablename__ = "voice_baseline_samples"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    senior_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    senior_phone_number: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+    baseline_call_sid: Mapped[str | None] = mapped_column(String(80), index=True, nullable=True)
+    baseline_call_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    baseline_call_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    prompt_text: Mapped[str] = mapped_column(Text)
+    transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    speech_confidence: Mapped[str | None] = mapped_column(String(40), nullable=True)
+
+    status: Mapped[str] = mapped_column(String(40), default="pending")
+
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
 
 class HeatRiskObservation(Base):
     __tablename__ = "heat_risk_observations"

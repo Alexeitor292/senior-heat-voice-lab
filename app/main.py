@@ -9,8 +9,10 @@ from app.routes.heat_risk import router as heat_risk_router
 from app.routes.schedules import router as schedules_router
 from app.routes.seniors import router as seniors_router
 from app.routes.twilio_webhooks import router as twilio_router
+from app.routes.baselines import router as baselines_router
 from app.services.checkin_store_service import checkin_store_service
 from app.services.profile_service import profile_service
+
 
 
 @asynccontextmanager
@@ -31,6 +33,7 @@ app.include_router(calls_router)
 app.include_router(seniors_router)
 app.include_router(schedules_router)
 app.include_router(heat_risk_router)
+app.include_router(baselines_router)
 app.include_router(twilio_router)
 
 

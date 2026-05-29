@@ -167,5 +167,42 @@ class TwilioService:
 
         return sms
 
+    def start_senior_baseline_call(
+        self,
+        senior_id: int,
+        senior_phone_number: str,
+    ):
+        """
+        Starts a baseline voice sample collection call.
+
+        This is separate from a heat check-in call.
+        It asks the senior to say a normal healthy baseline phrase.
+        """
+
+        base_url = self._base_url()
+
+        voice_webhook_url = (
+            f"{base_url}/twilio/voice/baseline"
+            f"?senior_id={senior_id}"
+        )
+
+        status_callback_url = f"{base_url}/twilio/status"
+
+        call = self.client.calls.create(
+            to=senior_phone_number,
+            from_=settings.twilio_phone_number,
+            url=voice_webhook_url,
+            method="POST",
+            status_callback=status_callback_url,
+            status_callback_method="POST",
+            status_callback_event=[
+                "initiated",
+                "ringing",
+                "answered",
+                "completed",
+            ],
+        )
+
+        return call
 
 twilio_service = TwilioService()
