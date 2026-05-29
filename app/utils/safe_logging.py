@@ -86,7 +86,7 @@ def mask_call_sid(value: str | None) -> str | None:
     if value is None:
         return None
 
-    if settings.log_pii:
+    if _log_pii_enabled():
         return value
 
     text = str(value)
@@ -128,7 +128,7 @@ def redact_string(value: str) -> str:
     Redacts phone numbers that appear inside longer strings.
     """
 
-    if settings.log_pii:
+    if _log_pii_enabled():
         return value
 
     return PHONE_PATTERN.sub(

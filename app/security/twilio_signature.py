@@ -1,4 +1,4 @@
-from urllib.parse import parse_qs
+from urllib.parse import parse_qsl
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from twilio.request_validator import RequestValidator
@@ -11,32 +11,53 @@ def _is_twilio_path(path: str) -> bool:
     return path == "/twilio" or path.startswith("/twilio/")
 
 
-def _build_public_url(scope: Scope) -> str:
+def _build_candidate_urls(scope: Scope, headers: dict[str, str]) -> list[str]:
     """
-    Twilio signs the public URL it called, not your localhost URL.
+    Returns candidate URLs to try for Twilio signature validation,
+    in priority order with duplicates removed.
 
-    Since we are behind ngrok locally, we rebuild the URL using
-    PUBLIC_BASE_URL from .env plus the request path/query.
+    Twilio signs the public URL it called. Behind ngrok/proxies the
+    Host header or forwarded headers may differ from PUBLIC_BASE_URL,
+    so we try all plausible reconstructions.
     """
-
     path = scope.get("path", "")
     query_string = scope.get("query_string", b"").decode("utf-8")
+    suffix = path + (f"?{query_string}" if query_string else "")
 
-    url = f"{settings.public_base_url.rstrip('/')}{path}"
+    candidates: list[str] = []
 
-    if query_string:
-        url = f"{url}?{query_string}"
+    # 1. PUBLIC_BASE_URL from config (highest priority — set to the ngrok URL)
+    candidates.append(f"{settings.public_base_url.rstrip('/')}{suffix}")
 
-    return url
+    # 2. x-forwarded-proto + x-forwarded-host (set by ngrok / reverse proxies)
+    forwarded_proto = headers.get("x-forwarded-proto")
+    forwarded_host = headers.get("x-forwarded-host")
+    if forwarded_proto and forwarded_host:
+        candidates.append(f"{forwarded_proto}://{forwarded_host}{suffix}")
+
+    # 3. Host header with forwarded proto (or https fallback)
+    host = headers.get("host")
+    if host:
+        proto = forwarded_proto or "https"
+        candidates.append(f"{proto}://{host}{suffix}")
+
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    unique: list[str] = []
+    for url in candidates:
+        if url not in seen:
+            seen.add(url)
+            unique.append(url)
+
+    return unique
 
 
 def _parse_form_params(body: bytes) -> dict[str, str]:
-    parsed = parse_qs(body.decode("utf-8"))
-
-    return {
-        key: values[0] if values else ""
-        for key, values in parsed.items()
-    }
+    pairs = parse_qsl(
+        body.decode("utf-8"),
+        keep_blank_values=True,
+    )
+    return {key: value for key, value in pairs}
 
 
 class TwilioSignatureValidationMiddleware:
@@ -84,17 +105,35 @@ class TwilioSignatureValidationMiddleware:
         }
 
         signature = headers.get("x-twilio-signature")
-
-        public_url = _build_public_url(scope)
         params = _parse_form_params(body)
+        candidate_urls = _build_candidate_urls(scope, headers)
 
-        is_valid = self.validator.validate(
-            public_url,
-            params,
-            signature or "",
+        is_valid = any(
+            self.validator.validate(url, params, signature or "")
+            for url in candidate_urls
         )
 
         if not is_valid:
+            blank_keys = [k for k, v in params.items() if v == ""]
+
+            safe_log_event(
+                "Invalid Twilio Signature",
+                {
+                    "candidate_urls": candidate_urls,
+                    "path": path,
+                    "has_signature_header": signature is not None,
+                    "form_param_keys": list(params.keys()),
+                    "blank_form_param_keys": blank_keys,
+                    "forwarded_proto": headers.get("x-forwarded-proto"),
+                    "forwarded_host": headers.get("x-forwarded-host"),
+                    "host": headers.get("host"),
+                    "hint": (
+                        "Check PUBLIC_BASE_URL matches ngrok URL exactly, "
+                        "and verify TWILIO_AUTH_TOKEN."
+                    ),
+                },
+            )
+
             response_body = b"Invalid Twilio signature."
 
             await send({
@@ -110,15 +149,6 @@ class TwilioSignatureValidationMiddleware:
                 "type": "http.response.body",
                 "body": response_body,
             })
-
-            safe_log_event(
-                "Invalid Twilio Signature",
-                {
-                    "validated_url": public_url,
-                    "path": path,
-                    "hint": "Check PUBLIC_BASE_URL and ngrok URL.",
-                },
-            )
 
             return
 
