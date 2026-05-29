@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException
 
 from app.services.profile_service import profile_service
 
+from app.services.support_network_service import support_network_service
+
 router = APIRouter(prefix="/ui-api", tags=["UI API"])
 
 
@@ -207,6 +209,76 @@ def _slugify(value: str) -> str:
         .replace("'", "")
     )
 
+def _support_context_for_senior(
+    raw: dict[str, Any],
+    location: dict[str, Any],
+) -> dict[str, Any]:
+    fallback = {
+        "assignedSupport": "Assigned Support",
+        "livingSituation": location["livingSituation"],
+        "supportMode": location["supportMode"],
+        "supportContactCount": location["supportContactCount"],
+        "hasSupportContact": location["hasSupportContact"],
+        "escalationPlanSummary": location["escalationPlanSummary"],
+    }
+
+    raw_id = raw.get("id")
+
+    try:
+        senior_id = int(raw_id)
+    except (TypeError, ValueError):
+        return fallback
+
+    network = support_network_service.get_support_network(senior_id)
+
+    if not network:
+        return fallback
+
+    plan = network.get("plan")
+    contacts = network.get("support_contacts", [])
+
+    if not plan and not contacts:
+        return fallback
+
+    primary_contact = contacts[0] if contacts else None
+    has_support_contact = bool(contacts)
+
+    if primary_contact:
+        assigned_support = primary_contact["name"]
+    elif plan and plan.get("allow_operator_review"):
+        assigned_support = "Operator Review"
+    else:
+        assigned_support = "No support contact"
+
+    living_situation = (
+        plan.get("living_situation")
+        if plan and plan.get("living_situation")
+        else fallback["livingSituation"]
+    )
+
+    support_mode = (
+        plan.get("support_mode")
+        if plan and plan.get("support_mode")
+        else fallback["supportMode"]
+    )
+
+    if plan and plan.get("notes"):
+        escalation_summary = plan["notes"]
+    elif not has_support_contact:
+        escalation_summary = (
+            "No support contact listed. Route high-risk cases to operator review."
+        )
+    else:
+        escalation_summary = "Contact support network according to priority order."
+
+    return {
+        "assignedSupport": assigned_support,
+        "livingSituation": living_situation,
+        "supportMode": support_mode,
+        "supportContactCount": len(contacts),
+        "hasSupportContact": has_support_contact,
+        "escalationPlanSummary": escalation_summary,
+    }
 
 def _real_seniors_or_mock() -> list[dict[str, Any]]:
     real_seniors = profile_service.list_seniors()
@@ -229,6 +301,7 @@ def _real_seniors_or_mock() -> list[dict[str, Any]]:
 
 def _display_senior(raw: dict[str, Any], index: int) -> dict[str, Any]:
     location = DISPLAY_LOCATIONS[index % len(DISPLAY_LOCATIONS)]
+    support_context = _support_context_for_senior(raw, location)
 
     name = raw.get("name") or FALLBACK_NAMES[index % len(FALLBACK_NAMES)]
     senior_id = raw.get("id") or _slugify(name)
@@ -248,18 +321,18 @@ def _display_senior(raw: dict[str, Any], index: int) -> dict[str, Any]:
         "preferredContactTime": "9:00 AM – 7:00 PM",
         "medicalNotes": raw.get("notes")
         or "Monitor hydration, heat exposure, and unusual fatigue.",
-        "emergencyContact": "James Wilson (Son), (602) 555-0198",
+        "emergencyContact": "See support network",
         "heatRisk": location["heatRisk"],
         "status": location["status"],
         "latestCheckIn": "Today, 10:18 AM",
-        "assignedCaregiver": "Assigned Support",
+        "assignedCaregiver": support_context["assignedSupport"],
         "recommendedAction": location["recommendedAction"],
         "isActive": raw.get("is_active", True),
-        "livingSituation": location["livingSituation"],
-        "supportMode": location["supportMode"],
-        "supportContactCount": location["supportContactCount"],
-        "hasSupportContact": location["hasSupportContact"],
-        "escalationPlanSummary": location["escalationPlanSummary"],
+        "livingSituation": support_context["livingSituation"],
+        "supportMode": support_context["supportMode"],
+        "supportContactCount": support_context["supportContactCount"],
+        "hasSupportContact": support_context["hasSupportContact"],
+        "escalationPlanSummary": support_context["escalationPlanSummary"],
     }
 
 

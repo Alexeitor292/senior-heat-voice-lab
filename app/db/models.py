@@ -58,6 +58,120 @@ class CaregiverProfile(Base):
         onupdate=utc_now,
     )
 
+class SupportContact(Base):
+    __tablename__ = "support_contacts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    phone_number: Mapped[str] = mapped_column(String(30), index=True, nullable=False)
+
+    # Examples: daughter, son, neighbor, case worker, front desk, volunteer
+    relationship: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+    # Examples: family, friend, neighbor, facility_staff, case_worker,
+    # community_volunteer, operator, emergency_contact
+    contact_type: Mapped[str] = mapped_column(String(40), default="family")
+
+    priority: Mapped[int] = mapped_column(Integer, default=1)
+
+    can_receive_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_emergency_contact: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
+class EscalationPlan(Base):
+    __tablename__ = "escalation_plans"
+
+    __table_args__ = (
+        UniqueConstraint("senior_id", name="uq_escalation_plans_senior_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    # Examples: Lives alone, Lives with family, Senior community,
+    # Assisted living, Unknown
+    living_situation: Mapped[str] = mapped_column(String(60), default="Unknown")
+
+    # Examples: Self-managed, Family supported, Community supported,
+    # Facility supported, Operator monitored
+    support_mode: Mapped[str] = mapped_column(String(60), default="Self-managed")
+
+    allow_operator_review: Mapped[bool] = mapped_column(Boolean, default=True)
+    allow_wellness_check: Mapped[bool] = mapped_column(Boolean, default=True)
+    allow_emergency_escalation: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
+class EscalationStep(Base):
+    __tablename__ = "escalation_steps"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    plan_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("escalation_plans.id"),
+        index=True,
+        nullable=False,
+    )
+
+    step_order: Mapped[int] = mapped_column(Integer, default=1)
+
+    # Examples: low, moderate, high, urgent
+    trigger_level: Mapped[str] = mapped_column(String(40), default="moderate")
+
+    # Examples: retry_senior, call_support_contact, operator_review,
+    # dispatch_wellness_check, call_non_emergency, call_emergency_services
+    action_type: Mapped[str] = mapped_column(String(60), default="operator_review")
+
+    target_contact_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("support_contacts.id"),
+        index=True,
+        nullable=True,
+    )
+
+    instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
 
 class CheckInSchedule(Base):
     __tablename__ = "check_in_schedules"
