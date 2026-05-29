@@ -28,6 +28,12 @@ interface Props {
 }
 
 function HeatTrendChart({ data }: { data: HeatTrendPoint[] }) {
+
+  const safeData = data.map((d) => ({
+    ...d,
+    value: Number.isFinite(Number(d.value)) ? Number(d.value) : 0,
+  }));
+
   const W = 400;
   const H = 100;
   const MAX = 8;
@@ -37,7 +43,7 @@ function HeatTrendChart({ data }: { data: HeatTrendPoint[] }) {
   const toY = (v: number) => pad.t + chartH - (v / MAX) * chartH;
   const toX = (i: number) => (i / (data.length - 1)) * W;
 
-  const points = data.map((d, i) => `${toX(i)},${toY(d.value)}`).join(" ");
+  const points = safeData.map((d, i) => `${toX(i)},${toY(d.value)}`).join(" ");
 
   const zones = [
     { y: toY(8), h: toY(6) - toY(8), fill: "rgba(229,41,32,0.12)",  label: "Extreme" },
@@ -45,6 +51,7 @@ function HeatTrendChart({ data }: { data: HeatTrendPoint[] }) {
     { y: toY(4), h: toY(2) - toY(4), fill: "rgba(18,103,216,0.10)", label: "Moderate" },
     { y: toY(2), h: toY(0) - toY(2), fill: "rgba(34,199,201,0.12)", label: "Low" },
   ];
+
 
   return (
     <div>
@@ -60,13 +67,13 @@ function HeatTrendChart({ data }: { data: HeatTrendPoint[] }) {
           strokeLinejoin="round"
           strokeLinecap="round"
         />
-        {data.map((d, i) => (
+        {safeData.map((d, i) => (
           <circle key={i} cx={toX(i)} cy={toY(d.value)} r={3.5} fill="#22C7C9" />
         ))}
       </svg>
       {/* X-axis labels */}
       <div className="flex justify-between mt-1">
-        {data.map((d) => (
+        {safeData.map((d) => (
           <span key={d.date} className="text-xs" style={{ color: "#667085", fontSize: 10 }}>
             {d.date.replace("May ", "")}
           </span>

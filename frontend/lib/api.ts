@@ -1,4 +1,15 @@
-import type { Senior, Alert, HeatCheck, DashboardSummary } from "./types";
+import type {
+  Senior,
+  Alert,
+  HeatCheck,
+  DashboardSummary,
+  MapViewData,
+  TimelineItem,
+  PriorityItem,
+  ScheduleItem,
+  HeatTrendPoint,
+} from "./types";
+
 import {
   MOCK_SENIORS,
   MOCK_ALERTS,
@@ -14,9 +25,57 @@ const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
+
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: ${path}`);
+  }
+
   return res.json() as Promise<T>;
 }
+
+function fallbackMapView(): MapViewData {
+  const urgentOutreach = MOCK_SENIORS
+    .filter((senior) => senior.status === "Urgent" || senior.status === "Watch")
+    .slice(0, 3)
+    .map((senior) => ({
+      seniorId: senior.id,
+      name: senior.name,
+      age: senior.age,
+      location: senior.location,
+      time: "9:54 AM",
+      risk: senior.heatRisk,
+      status: senior.status,
+    }));
+
+  return {
+    summary: {
+      ...MOCK_DASHBOARD_SUMMARY,
+      supervisedSeniors: MOCK_SENIORS.length,
+      needOutreachToday: urgentOutreach.length,
+      critical: MOCK_SENIORS.filter((senior) => senior.status === "Urgent").length,
+    },
+    seniors: MOCK_SENIORS,
+    selectedSeniorId: "eleanor-jennings",
+    urgentOutreach,
+  };
+}
+
+// Map --------------------------------------------------------------------
+
+export async function getMapView(): Promise<MapViewData> {
+  try {
+    return await apiFetch<MapViewData>("/ui-api/map");
+  } catch {
+    return fallbackMapView();
+  }
+}
+
+export async function getMapSeniors(): Promise<Senior[]> {
+  const mapView = await getMapView();
+  return mapView.seniors;
+}
+
+// Seniors ----------------------------------------------------------------
 
 export async function getSeniors(): Promise<Senior[]> {
   try {
@@ -36,25 +95,21 @@ export async function getSenior(id: string | number): Promise<Senior | null> {
   }
 }
 
-export async function getSeniorTimeline(id: string | number) {
+export async function getSeniorTimeline(
+  id: string | number
+): Promise<TimelineItem[]> {
   try {
-    const data = await apiFetch<{ senior: Senior; timeline: typeof MOCK_TIMELINE }>(
+    const data = await apiFetch<{ senior: Senior; timeline: TimelineItem[] }>(
       `/ui-api/seniors/${id}`
     );
+
     return data.timeline;
   } catch {
     return MOCK_TIMELINE;
   }
 }
 
-export async function getMapSeniors(): Promise<Senior[]> {
-  try {
-    const data = await apiFetch<{ seniors: Senior[] }>("/ui-api/map");
-    return data.seniors;
-  } catch {
-    return MOCK_SENIORS;
-  }
-}
+// Dashboard --------------------------------------------------------------
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   try {
@@ -65,14 +120,20 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   }
 }
 
-export async function getDashboardView() {
+export async function getDashboardView(): Promise<{
+  summary: DashboardSummary;
+  priorities: PriorityItem[];
+  schedule: ScheduleItem[];
+  alerts: Alert[];
+  trendData: HeatTrendPoint[];
+}> {
   try {
     return await apiFetch<{
       summary: DashboardSummary;
-      priorities: typeof MOCK_PRIORITIES;
-      schedule: typeof MOCK_SCHEDULE;
+      priorities: PriorityItem[];
+      schedule: ScheduleItem[];
       alerts: Alert[];
-      trendData: typeof HEAT_TREND_DATA;
+      trendData: HeatTrendPoint[];
     }>("/ui-api/dashboard");
   } catch {
     return {
@@ -85,6 +146,8 @@ export async function getDashboardView() {
   }
 }
 
+// Alerts -----------------------------------------------------------------
+
 export async function getAlerts(): Promise<Alert[]> {
   try {
     const data = await apiFetch<{ items: Alert[] }>("/ui-api/alerts");
@@ -93,6 +156,8 @@ export async function getAlerts(): Promise<Alert[]> {
     return MOCK_ALERTS;
   }
 }
+
+// Heat Checks ------------------------------------------------------------
 
 export async function getHeatChecks(): Promise<HeatCheck[]> {
   return [MOCK_HEAT_CHECK];
@@ -110,6 +175,8 @@ export async function getHeatCheck(id: string): Promise<HeatCheck | null> {
   }
 }
 
+// Actions ----------------------------------------------------------------
+
 export async function startHeatCheck(
   seniorId: string | number
 ): Promise<{ callSid: string }> {
@@ -117,7 +184,9 @@ export async function startHeatCheck(
     method: "POST",
   });
 
-  if (!res.ok) throw new Error("Failed to start heat check");
+  if (!res.ok) {
+    throw new Error("Failed to start heat check");
+  }
 
   return res.json();
 }
@@ -126,5 +195,8 @@ export async function dispatchWellnessCheck(
   seniorId: string | number
 ): Promise<{ message: string }> {
   console.log("[TODO] Dispatch wellness check for senior", seniorId);
-  return { message: "Wellness check dispatched (mock)" };
+
+  return {
+    message: "Wellness check dispatched (mock)",
+  };
 }

@@ -1,36 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Users, Thermometer, AlertTriangle } from "lucide-react";
 import { NationalHeatMap } from "@/components/map/NationalHeatMap";
 import { SelectedSeniorPanel } from "@/components/map/SelectedSeniorPanel";
 import { MapLegend } from "@/components/map/MapLegend";
-import type { Senior } from "@/lib/types";
-import { URGENT_OUTREACH } from "@/lib/mock-data";
+import type { Senior, MapViewData } from "@/lib/types";
 
 interface Props {
-  seniors: Senior[];
+  mapData: MapViewData;
 }
 
-export function MapView({ seniors }: Props) {
+export function MapView({ mapData }: Props) {
+  const { seniors, summary, urgentOutreach } = mapData;
+
+  const initialSelectedSenior = useMemo(() => {
+    if (!seniors.length) return null;
+
+    if (mapData.selectedSeniorId !== undefined && mapData.selectedSeniorId !== null) {
+      const selected = seniors.find(
+        (senior) => String(senior.id) === String(mapData.selectedSeniorId)
+      );
+
+      if (selected) return selected;
+    }
+
+    return (
+      seniors.find((senior) => senior.status === "Urgent") ??
+      seniors.find((senior) => senior.heatRisk === "High") ??
+      seniors[0]
+    );
+  }, [seniors, mapData.selectedSeniorId]);
+
   const [selectedSenior, setSelectedSenior] = useState<Senior | null>(
-    seniors.find((s) => s.id === "eleanor-jennings") ?? null
+    initialSelectedSenior
   );
 
-  const urgentCount = seniors.filter(
-    (s) => s.status === "Urgent" || s.status === "Watch"
-  ).length;
+  const supervisedCount = summary.supervisedSeniors ?? summary.seniorsMonitored ?? seniors.length;
+
+  const needOutreachCount =
+    summary.needOutreachToday ??
+    summary.needOutreach ??
+    seniors.filter((senior) => senior.status === "Urgent" || senior.status === "Watch").length;
+
+  const criticalCount =
+    summary.critical ??
+    summary.criticalAlerts ??
+    seniors.filter((senior) => senior.status === "Urgent").length;
 
   return (
     <div className="flex h-full" style={{ background: "#F8FAFC" }}>
-      {/* Map area */}
       <div className="flex flex-col flex-1 min-w-0">
-        {/* Header strip */}
         <div
           className="px-6 py-4 shrink-0 border-b"
           style={{ background: "white", borderColor: "#D8E0EA" }}
         >
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-6">
             <div>
               <h1 className="font-bold text-xl" style={{ color: "#071D3A" }}>
                 National Supervision Map
@@ -40,7 +65,6 @@ export function MapView({ seniors }: Props) {
               </p>
             </div>
 
-            {/* Metric badges */}
             <div className="flex items-center gap-3 mt-1">
               <div
                 className="flex items-center gap-2 rounded-md px-3 py-1.5"
@@ -51,7 +75,7 @@ export function MapView({ seniors }: Props) {
                   Supervised Seniors
                 </span>
                 <span className="text-xs font-bold" style={{ color: "#071D3A" }}>
-                  {seniors.length}
+                  {supervisedCount}
                 </span>
               </div>
 
@@ -61,10 +85,10 @@ export function MapView({ seniors }: Props) {
               >
                 <Thermometer size={13} style={{ color: "#F59E0B" }} />
                 <span className="text-xs font-medium" style={{ color: "#F59E0B" }}>
-                  Heat Outreach Today
+                  Need Outreach Today
                 </span>
                 <span className="text-xs font-bold" style={{ color: "#071D3A" }}>
-                  {urgentCount}
+                  {needOutreachCount}
                 </span>
               </div>
 
@@ -77,14 +101,13 @@ export function MapView({ seniors }: Props) {
                   Critical
                 </span>
                 <span className="text-xs font-bold" style={{ color: "#071D3A" }}>
-                  3
+                  {criticalCount}
                 </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Map canvas */}
         <div className="flex-1 relative min-h-0 p-4">
           <NationalHeatMap
             seniors={seniors}
@@ -93,14 +116,12 @@ export function MapView({ seniors }: Props) {
           />
         </div>
 
-        {/* Legend */}
         <MapLegend />
       </div>
 
-      {/* Right panel */}
       <SelectedSeniorPanel
         senior={selectedSenior}
-        urgentOutreach={URGENT_OUTREACH}
+        urgentOutreach={urgentOutreach}
       />
     </div>
   );

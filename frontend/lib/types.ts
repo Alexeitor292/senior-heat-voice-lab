@@ -89,6 +89,11 @@ export interface DashboardSummary {
   seniorsMonitored: number;
   needOutreach: number;
   criticalAlerts: number;
+
+  // Map-specific aliases returned by /ui-api/map.
+  supervisedSeniors?: number;
+  needOutreachToday?: number;
+  critical?: number;
 }
 
 export interface PriorityItem {
@@ -99,4 +104,26 @@ export interface PriorityItem {
   location: string;
   risk: RiskLevel;
   action: string;
+}
+
+export interface HeatTrendPoint {
+  date: string;
+  value: number;
+}
+
+export interface UrgentOutreachItem {
+  seniorId: string | number;
+  name: string;
+  age: number;
+  location: string;
+  time?: string;
+  risk: RiskLevel;
+  status?: SeniorStatus;
+}
+
+export interface MapViewData {
+  summary: DashboardSummary;
+  seniors: Senior[];
+  selectedSeniorId?: string | number | null;
+  urgentOutreach: UrgentOutreachItem[];
 }
