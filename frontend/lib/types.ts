@@ -37,6 +37,12 @@ export interface Senior {
   emergencyContact?: string;
   heatRisk: RiskLevel;
   status: SeniorStatus;
+  heatRiskValue?: number | null;
+  heatRiskSource?: string | null;
+  latestCheckInRisk?: RiskLevel | string;
+  latestCheckInAt?: string | null;
+  escalationNeeded?: boolean;
+  orientationConcern?: boolean;
   latestCheckIn?: string;
   assignedCaregiver?: string;
   recommendedAction?: string;

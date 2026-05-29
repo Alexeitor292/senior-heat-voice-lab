@@ -10,6 +10,8 @@ from app.services.support_network_service import support_network_service
 
 from app.services.heat_risk_service import heat_risk_service
 
+from app.services.operational_status_service import operational_status_service
+
 router = APIRouter(prefix="/ui-api", tags=["UI API"])
 
 
@@ -391,6 +393,13 @@ def _display_senior(raw: dict[str, Any], index: int) -> dict[str, Any]:
     fallback_location = DISPLAY_LOCATIONS[index % len(DISPLAY_LOCATIONS)]
     support_context = _support_context_for_senior(raw, fallback_location)
     heat_context = _heat_settings_context_for_senior(raw, fallback_location)
+    operational_status = operational_status_service.get_status_for_senior(
+        senior=raw,
+        has_support_contact=bool(support_context["hasSupportContact"]),
+        fallback_heat_risk=fallback_location["heatRisk"],
+        fallback_status=fallback_location["status"],
+        fallback_recommended_action=fallback_location["recommendedAction"],
+    )
 
     name = raw.get("name") or FALLBACK_NAMES[index % len(FALLBACK_NAMES)]
     senior_id = raw.get("id") or _slugify(name)
@@ -420,11 +429,17 @@ def _display_senior(raw: dict[str, Any], index: int) -> dict[str, Any]:
 
         # Risk/status still fall back to demo display data for now.
         # Next milestone can pull latest HeatRiskObservation.
-        "heatRisk": fallback_location["heatRisk"],
-        "status": fallback_location["status"],
-        "latestCheckIn": "Today, 10:18 AM",
+        "heatRisk": operational_status["heatRisk"],
+        "status": operational_status["status"],
+        "latestCheckIn": operational_status["latestCheckIn"],
         "assignedCaregiver": support_context["assignedSupport"],
-        "recommendedAction": fallback_location["recommendedAction"],
+        "recommendedAction": operational_status["recommendedAction"],
+        "heatRiskValue": operational_status["heatRiskValue"],
+        "heatRiskSource": operational_status["heatRiskSource"],
+        "latestCheckInRisk": operational_status["latestCheckInRisk"],
+        "latestCheckInAt": operational_status["latestCheckInAt"],
+        "escalationNeeded": operational_status.get("escalationNeeded", False),
+        "orientationConcern": operational_status.get("orientationConcern", False),
         "isActive": raw.get("is_active", True),
 
         # Real support-network fields come from EscalationPlan/SupportContact when available.
