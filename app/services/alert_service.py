@@ -53,6 +53,7 @@ class AlertService:
         }.get(risk_level, "Heat check-in alert")
 
         return {
+            "alert_kind": "speech_risk",
             "title": title,
             "risk_level": risk_level,
             "senior_name": senior_name,
@@ -150,6 +151,145 @@ class AlertService:
                 "alert_sent": False,
                 "alert_type": "voice_call",
                 "risk_level": risk_level,
+                "to": target_caregiver_phone_number,
+                "alert_id": alert.id,
+                "error": str(exc),
+                "message_preview": payload,
+            }
+
+    def build_no_answer_voice_payload(
+        self,
+        senior_name: str | None,
+        call_sid: str | None,
+        call_status: str | None,
+    ) -> dict[str, Any]:
+        """
+        Builds the caregiver alert payload when the senior check-in call
+        was not successfully answered/completed.
+        """
+
+        senior_phrase = senior_name or "the senior"
+
+        return {
+            "alert_kind": "no_answer",
+            "title": "Heat safety follow-up needed",
+            "risk_level": "UNKNOWN",
+            "senior_name": senior_name,
+            "transcript": (
+                "No spoken response was captured because the check-in call "
+                "was not completed."
+            ),
+            "caregiver_summary": (
+                f"We attempted to reach {senior_phrase} for a heat safety "
+                f"check-in, but the call ended with status: {call_status or 'unknown'}."
+            ),
+            "recommended_action": (
+                f"Please call or check on {senior_phrase} when possible. "
+                "If you believe they may be in immediate danger, contact emergency services."
+            ),
+            "reported_symptoms": [],
+            "red_flags": [],
+            "source_call_sid": call_sid,
+            "call_status": call_status,
+            "check_in_id": None,
+        }
+
+    def send_no_answer_caregiver_voice_alert(
+        self,
+        senior_name: str | None,
+        caregiver_phone_number: str | None,
+        call_sid: str | None,
+        call_status: str | None,
+    ) -> dict[str, Any]:
+        """
+        Calls the caregiver when a senior check-in call is not answered,
+        busy, failed, or canceled.
+
+        This is separate from speech-risk alerts because no transcript exists.
+        """
+
+        if not call_sid:
+            return {
+                "alert_sent": False,
+                "alert_type": "voice_call",
+                "alert_kind": "no_answer",
+                "reason": "No source call SID was provided.",
+            }
+
+        already_sent = checkin_store_service.caregiver_alert_exists_for_source_call(
+            source_call_sid=call_sid,
+            alert_kind="no_answer",
+        )
+
+        if already_sent:
+            return {
+                "alert_sent": False,
+                "alert_type": "voice_call",
+                "alert_kind": "no_answer",
+                "reason": "No-answer caregiver alert already exists for this call.",
+                "source_call_sid": call_sid,
+            }
+
+        target_caregiver_phone_number = (
+            caregiver_phone_number
+            or settings.caregiver_test_phone_number
+        )
+
+        if not target_caregiver_phone_number:
+            return {
+                "alert_sent": False,
+                "alert_type": "voice_call",
+                "alert_kind": "no_answer",
+                "reason": "No caregiver phone number is configured.",
+                "source_call_sid": call_sid,
+            }
+
+        payload = self.build_no_answer_voice_payload(
+            senior_name=senior_name,
+            call_sid=call_sid,
+            call_status=call_status,
+        )
+
+        alert = checkin_store_service.create_caregiver_alert(
+            check_in_id=None,
+            risk_level="UNKNOWN",
+            caregiver_phone_number=target_caregiver_phone_number,
+            payload=payload,
+        )
+
+        try:
+            call = twilio_service.start_caregiver_voice_alert_call(
+                caregiver_phone_number=target_caregiver_phone_number,
+                alert_id=alert.id,
+            )
+
+            checkin_store_service.mark_caregiver_alert_call_started(
+                alert_id=alert.id,
+                caregiver_call_sid=call.sid,
+            )
+
+            return {
+                "alert_sent": True,
+                "alert_type": "voice_call",
+                "alert_kind": "no_answer",
+                "risk_level": "UNKNOWN",
+                "to": target_caregiver_phone_number,
+                "alert_id": alert.id,
+                "caregiver_call_sid": call.sid,
+                "message_preview": payload,
+            }
+
+        except Exception as exc:
+            checkin_store_service.mark_caregiver_alert_failed(
+                alert_id=alert.id,
+                error_message=str(exc),
+            )
+
+            return {
+                "alert_sent": False,
+                "alert_type": "voice_call",
+                "alert_kind": "no_answer",
+                "risk_level": "UNKNOWN",
                 "to": target_caregiver_phone_number,
                 "alert_id": alert.id,
                 "error": str(exc),

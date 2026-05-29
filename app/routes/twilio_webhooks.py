@@ -13,6 +13,33 @@ from app.services.risk_analysis_service import risk_analysis_service
 router = APIRouter(prefix="/twilio", tags=["Twilio Webhooks"])
 
 
+NO_ANSWER_STATUSES = {
+    "no-answer",
+    "busy",
+    "failed",
+    "canceled",
+}
+
+def should_trigger_incomplete_call_alert(
+    call_status: str | None,
+    call_sid: str | None,
+) -> bool:
+    """
+    Handles cases where Twilio marks the call completed,
+    but the senior never completed the spoken check-in.
+
+    Example:
+    - voicemail picked up
+    - senior hung up
+    - no speech response was captured
+    """
+
+    if call_status != "completed":
+        return False
+
+    return not checkin_store_service.check_in_exists_for_call_sid(call_sid)
+
+
 def parse_twilio_form(raw_body: bytes) -> dict:
     """
     Twilio sends webhook payloads as application/x-www-form-urlencoded.
@@ -119,7 +146,7 @@ async def heat_check_response(request: Request):
 @router.post("/voice/heat-check-speech")
 async def heat_check_speech(senior_id: int | None = None):
     """
-    Step 3 through Step 7 speech check-in.
+    Step 3 through Step 11 speech check-in.
 
     If senior_id is present, this is a profile-based call.
     If senior_id is missing, this is the legacy .env test call.
@@ -168,7 +195,7 @@ async def heat_check_speech_response(
     senior_id: int | None = None,
 ):
     """
-    Step 7 speech response handler.
+    Speech response handler.
 
     Twilio sends the speech transcript here as SpeechResult.
     We analyze the transcript, save the check-in, and call the
@@ -412,6 +439,9 @@ async def caregiver_alert_voice(alert_id: str):
 async def twilio_status_callback(request: Request):
     """
     Twilio sends call status updates here.
+
+    If a profile-based senior check-in call ends as no-answer/busy/failed/canceled,
+    we call the caregiver with a follow-up alert.
     """
 
     form = parse_twilio_form(await request.body())
@@ -444,8 +474,38 @@ async def twilio_status_callback(request: Request):
         duration_seconds=call_duration,
     )
 
-    return {
-        "received": True,
-        "call_sid": call_sid,
-        "status": call_status,
-    }
+    is_failed_call = call_status in NO_ANSWER_STATUSES
+    is_completed_without_checkin = should_trigger_incomplete_call_alert(
+        call_status=call_status,
+        call_sid=call_sid,
+    )
+
+    if is_failed_call or is_completed_without_checkin:
+        alert_context = profile_service.get_alert_context_for_call_sid(call_sid)
+
+        if alert_context:
+            senior = alert_context.get("senior")
+            caregiver = alert_context.get("caregiver")
+
+            senior_name = senior.get("name") if senior else None
+            caregiver_phone_number = caregiver.get("phone_number") if caregiver else None
+
+            alert_status = call_status
+
+            if is_completed_without_checkin:
+                alert_status = "completed_without_speech_response"
+
+            no_answer_alert_result = alert_service.send_no_answer_caregiver_voice_alert(
+                senior_name=senior_name,
+                caregiver_phone_number=caregiver_phone_number,
+                call_sid=call_sid,
+                call_status=alert_status,
+            )
+
+            print("\nMissed or Incomplete Check-In Caregiver Alert Result")
+            print("----------------------------------------------------")
+            print(json.dumps(no_answer_alert_result, indent=2))
+
+        else:
+            print("\nMissed/incomplete call status received, but no profile call session was found.")
+            print("Skipping caregiver missed-check-in alert.")

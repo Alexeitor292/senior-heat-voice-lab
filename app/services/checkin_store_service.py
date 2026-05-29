@@ -104,6 +104,32 @@ class CheckInStoreService:
 
             return alert
 
+    def caregiver_alert_exists_for_source_call(
+        self,
+        source_call_sid: str | None,
+        alert_kind: str | None = None,
+    ) -> bool:
+        """
+        Prevents duplicate caregiver alerts for the same senior call.
+
+        We avoid adding new columns right now and search the JSON payload text.
+        Later, this should become a proper indexed source_call_sid column.
+        """
+
+        if not source_call_sid:
+            return False
+
+        with SessionLocal() as db:
+            query = (
+                db.query(CaregiverAlert)
+                .filter(CaregiverAlert.payload_json.contains(source_call_sid))
+            )
+
+            if alert_kind:
+                query = query.filter(CaregiverAlert.payload_json.contains(alert_kind))
+
+            return query.first() is not None
+
     def mark_caregiver_alert_call_started(
         self,
         alert_id: str,
@@ -213,9 +239,32 @@ class CheckInStoreService:
                 db.commit()
                 return
 
+    def check_in_exists_for_call_sid(
+        self,
+        senior_call_sid: str | None,
+    ) -> bool:
+        """
+        Returns True if a speech check-in record exists for this senior call.
+
+        Used to detect calls that completed but never produced a transcript.
+        """
+
+        if not senior_call_sid:
+            return False
+
+        with SessionLocal() as db:
+            row = (
+                db.query(CheckIn)
+                .filter(CheckIn.senior_call_sid == senior_call_sid)
+                .first()
+            )
+
+            return row is not None
+            
+
     def get_recent_check_ins(self, limit: int = 10) -> list[dict[str, Any]]:
         """
-        Simple helper for debugging from an API endpoint later.
+        Simple helper for debugging from an API endpoint.
         """
 
         with SessionLocal() as db:
@@ -243,6 +292,28 @@ class CheckInStoreService:
                 }
                 for row in rows
             ]
+    
+        def check_in_exists_for_call_sid(
+            self,
+            senior_call_sid: str | None,
+        ) -> bool:
+            """
+            Returns True if a speech check-in record exists for this senior call.
+
+            Used to detect calls that completed but never produced a transcript.
+            """
+
+            if not senior_call_sid:
+                return False
+
+            with SessionLocal() as db:
+                row = (
+                    db.query(CheckIn)
+                    .filter(CheckIn.senior_call_sid == senior_call_sid)
+                    .first()
+                )
+
+                return row is not None
 
 
 checkin_store_service = CheckInStoreService()
