@@ -7,6 +7,7 @@ from app.config import settings
 from app.db.database import init_db
 from app.services.heat_risk_service import heat_risk_service
 from app.services.schedule_service import schedule_service
+from app.utils.safe_logging import safe_log_event
 
 
 def run_once(include_heat_risk: bool = True) -> dict:
@@ -21,9 +22,10 @@ def run_once(include_heat_risk: bool = True) -> dict:
     if include_heat_risk:
         result["heat_risk_result"] = heat_risk_service.run_heat_risk_checks()
 
-    print("\nScheduler Run")
-    print("-------------")
-    print(json.dumps(result, indent=2))
+    safe_log_event(
+        "Scheduler Run",
+        result,
+    )
 
     return result
 

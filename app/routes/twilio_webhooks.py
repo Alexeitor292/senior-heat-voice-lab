@@ -11,6 +11,11 @@ from app.services.profile_service import profile_service
 from app.services.risk_analysis_service import risk_analysis_service
 from app.services.voice_baseline_service import voice_baseline_service
 from app.services.baseline_comparison_service import baseline_comparison_service
+from app.utils.safe_logging import (
+    safe_alert_result_for_logging,
+    safe_baseline_comparison_for_logging,
+    safe_log_event,
+)
 
 router = APIRouter(prefix="/twilio", tags=["Twilio Webhooks"])
 
@@ -105,12 +110,15 @@ async def heat_check_response(request: Request):
     from_number = form.get("From")
     to_number = form.get("To")
 
-    print("\nHeat Check Keypad Response")
-    print("--------------------------")
-    print(f"Call SID: {call_sid}")
-    print(f"Digit pressed: {digit}")
-    print(f"From: {from_number}")
-    print(f"To: {to_number}")
+    safe_log_event(
+        "Heat Check Keypad Response",
+        {
+            "call_sid": call_sid,
+            "digit": digit,
+            "from_number": from_number,
+            "to_number": to_number,
+        },
+    )
 
     response = VoiceResponse()
 
@@ -305,29 +313,23 @@ async def heat_check_speech_response(
         senior_name=senior_name,
     )
 
-    print("\nHeat Check Speech Response")
-    print("--------------------------")
-    print(f"Check-in ID: {check_in.id}")
-    print(f"Profile senior_id: {senior_id}")
-    print(f"Profile senior_name: {senior_name}")
-    print(f"Profile caregiver_phone_number: {caregiver_phone_number}")
-    print(f"Call SID: {call_sid}")
-    print(f"From: {from_number}")
-    print(f"To: {to_number}")
-    print(f"SpeechResult: {speech_result}")
-    print(f"Confidence: {confidence}")
-
-    print("\nStructured Risk Analysis")
-    print("------------------------")
-    print(json.dumps(analysis, indent=2))\
-
-    print("\nBaseline Comparison")
-    print("-------------------")
-    print(json.dumps(saved_baseline_comparison, indent=2))
-
-    print("\nCaregiver Voice Alert Result")
-    print("----------------------------")
-    print(json.dumps(alert_result, indent=2))
+    safe_log_event(
+        "Heat Check Speech Response",
+        {
+            "check_in_id": check_in.id,
+            "profile_senior_id": senior_id,
+            "profile_caregiver_phone_number": caregiver_phone_number,
+            "call_sid": call_sid,
+            "from_number": from_number,
+            "to_number": to_number,
+            "speech_result": speech_result,
+            "speech_confidence": confidence,
+            "risk_level": analysis.get("risk_level"),
+            "caregiver_alert_required": caregiver_alert_required,
+            "caregiver_alert_result": safe_alert_result_for_logging(alert_result),
+            "baseline_comparison": safe_baseline_comparison_for_logging(saved_baseline_comparison),
+        },
+    )
 
     alert_sent = alert_result.get("alert_sent", False)
 
@@ -564,15 +566,18 @@ async def baseline_voice_response(
         speech_confidence=confidence,
     )
 
-    print("\nBaseline Voice Response")
-    print("-----------------------")
-    print(f"Senior ID: {senior_id}")
-    print(f"Call SID: {call_sid}")
-    print(f"From: {from_number}")
-    print(f"To: {to_number}")
-    print(f"SpeechResult: {speech_result}")
-    print(f"Confidence: {confidence}")
-    print(f"Baseline saved: {baseline}")
+    safe_log_event(
+        "Baseline Voice Response",
+        {
+            "senior_id": senior_id,
+            "call_sid": call_sid,
+            "from_number": from_number,
+            "to_number": to_number,
+            "speech_confidence": confidence,
+            "baseline_captured": baseline is not None,
+            "baseline_status": baseline.get("status") if baseline else None,
+        },
+    )
 
     response = VoiceResponse()
 
@@ -610,14 +615,17 @@ async def twilio_status_callback(request: Request):
     call_duration = form.get("CallDuration")
     direction = form.get("Direction")
 
-    print("\nTwilio Call Status Update")
-    print("-------------------------")
-    print(f"Call SID: {call_sid}")
-    print(f"Status: {call_status}")
-    print(f"From: {from_number}")
-    print(f"To: {to_number}")
-    print(f"Direction: {direction}")
-    print(f"Duration: {call_duration}")
+    safe_log_event(
+        "Twilio Call Status Update",
+        {
+            "call_sid": call_sid,
+            "status": call_status,
+            "from_number": from_number,
+            "to_number": to_number,
+            "direction": direction,
+            "duration": call_duration,
+        },
+    )
 
     checkin_store_service.update_call_status_by_sid(
         call_sid=call_sid,
@@ -665,10 +673,17 @@ async def twilio_status_callback(request: Request):
                 call_status=alert_status,
             )
 
-            print("\nMissed or Incomplete Check-In Caregiver Alert Result")
-            print("----------------------------------------------------")
-            print(json.dumps(no_answer_alert_result, indent=2))
+            safe_log_event(
+                "Missed or Incomplete Check-In Caregiver Alert Result",
+                safe_alert_result_for_logging(no_answer_alert_result),
+            )
 
         else:
-            print("\nMissed/incomplete call status received, but no profile call session was found.")
-            print("Skipping caregiver missed-check-in alert.")
+            safe_log_event(
+                "Missed or Incomplete Check-In Skipped",
+                {
+                    "reason": "No profile call session was found.",
+                    "call_sid": call_sid,
+                    "call_status": call_status,
+                },
+            )
