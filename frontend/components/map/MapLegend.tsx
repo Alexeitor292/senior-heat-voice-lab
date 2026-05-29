@@ -2,10 +2,10 @@ import { statusColor } from "@/lib/risk";
 import type { SeniorStatus } from "@/lib/types";
 
 const HEAT_STOPS = [
-  { color: "rgba(34,199,201,0.45)", label: "Low" },
-  { color: "rgba(18,103,216,0.4)",  label: "" },
-  { color: "rgba(245,158,11,0.5)",  label: "" },
-  { color: "rgba(229,41,32,0.55)",  label: "Extreme" },
+  { color: "rgba(34,199,201,0.5)" },
+  { color: "rgba(18,103,216,0.45)" },
+  { color: "rgba(245,158,11,0.55)" },
+  { color: "rgba(229,41,32,0.6)" },
 ];
 
 const STATUS_ITEMS: { label: SeniorStatus }[] = [
@@ -18,56 +18,41 @@ const STATUS_ITEMS: { label: SeniorStatus }[] = [
 export function MapLegend() {
   return (
     <div
-      className="flex items-center gap-8 px-5 py-3 shrink-0"
-      style={{ borderTop: "1px solid #D8E0EA", background: "white" }}
+      className="flex items-center gap-8 px-5 py-2.5 shrink-0"
+      style={{ borderTop: "1px solid #E8EDF3", background: "white" }}
     >
-      {/* Heat Risk */}
       <div>
-        <p className="text-xs font-medium mb-1.5" style={{ color: "#667085" }}>
-          Heat Risk (National)
-        </p>
+        <p className="label-caps mb-1.5">Heat Risk (National)</p>
         <div className="flex items-center gap-1">
-          <span className="text-xs mr-1" style={{ color: "#667085" }}>
-            Low
-          </span>
+          <span style={{ fontSize: 11, color: "#667085", marginRight: 4 }}>Low</span>
           {HEAT_STOPS.map((s, i) => (
             <span
               key={i}
               style={{
                 display: "inline-block",
-                width: 24,
-                height: 12,
+                width: 22,
+                height: 10,
                 background: s.color,
-                borderRadius: 2,
+                borderRadius: 3,
               }}
             />
           ))}
-          <span className="text-xs ml-1" style={{ color: "#667085" }}>
-            Extreme
-          </span>
+          <span style={{ fontSize: 11, color: "#667085", marginLeft: 4 }}>Extreme</span>
         </div>
       </div>
 
-      {/* Senior Status */}
+      <div className="w-px self-stretch" style={{ background: "#E8EDF3" }} />
+
       <div>
-        <p className="text-xs font-medium mb-1.5" style={{ color: "#667085" }}>
-          Senior Status
-        </p>
+        <p className="label-caps mb-1.5">Senior Status</p>
         <div className="flex items-center gap-4">
           {STATUS_ITEMS.map((s) => (
             <div key={s.label} className="flex items-center gap-1.5">
               <span
-                className="rounded-full"
-                style={{
-                  display: "inline-block",
-                  width: 8,
-                  height: 8,
-                  background: statusColor(s.label),
-                }}
+                className="rounded-full shrink-0"
+                style={{ display: "inline-block", width: 7, height: 7, background: statusColor(s.label) }}
               />
-              <span className="text-xs" style={{ color: "#667085" }}>
-                {s.label}
-              </span>
+              <span style={{ fontSize: 11.5, color: "#667085" }}>{s.label}</span>
             </div>
           ))}
         </div>

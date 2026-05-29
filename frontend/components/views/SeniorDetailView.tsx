@@ -32,31 +32,56 @@ function TimelineItemRow({ item }: { item: TimelineItem }) {
   const iconProps = { size: 14, className: "shrink-0 mt-0.5" };
   const icons = {
     success: <CheckCircle {...iconProps} style={{ color: "#22C55E" }} />,
-    missed: <XCircle {...iconProps} style={{ color: "#EF4444" }} />,
-    info: <Info {...iconProps} style={{ color: "#1267D8" }} />,
+    missed:  <XCircle    {...iconProps} style={{ color: "#EF4444" }} />,
+    info:    <Info       {...iconProps} style={{ color: "#1267D8" }} />,
   };
   const icon = icons[item.status ?? "info"];
 
   return (
-    <div className="flex gap-3 py-3" style={{ borderBottom: "1px solid #F1F5F9" }}>
-      <div className="mt-0.5">{icon}</div>
+    <div
+      className="flex gap-3 py-3 transition-interactive"
+      style={{ borderBottom: "1px solid #F8FAFC" }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#FAFBFC"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+    >
+      <div className="mt-0.5 shrink-0">{icon}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="font-medium text-sm" style={{ color: "#071D3A" }}>
+          <span className="font-medium" style={{ fontSize: 13, color: "#071D3A" }}>
             {item.title}
           </span>
-          <span className="text-xs shrink-0" style={{ color: "#8FA8C8" }}>
+          <span className="tabular shrink-0" style={{ fontSize: 11.5, color: "#94A8BC" }}>
             {item.time}
           </span>
         </div>
         {item.description && (
-          <p className="text-xs mt-0.5" style={{ color: "#667085" }}>
+          <p className="mt-0.5" style={{ fontSize: 12.5, color: "#667085", lineHeight: 1.5 }}>
             {item.description}
           </p>
         )}
-        <span className="text-xs" style={{ color: "#8FA8C8", fontSize: 10 }}>
-          {item.date}
-        </span>
+        <span style={{ fontSize: 10.5, color: "#94A8BC" }}>{item.date}</span>
+      </div>
+    </div>
+  );
+}
+
+const CARD_SHADOW = "0 0 0 1px #E8EDF3, 0 1px 3px 0 rgb(7 29 58 / 0.05)";
+
+function ProfileRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="shrink-0 mt-0.5" style={{ color: "#94A8BC" }}>{icon}</div>
+      <div>
+        <p className="label-caps mb-0.5">{label}</p>
+        <div style={{ fontSize: 13, color: "#071D3A", lineHeight: 1.5 }}>{value}</div>
       </div>
     </div>
   );
@@ -65,15 +90,15 @@ function TimelineItemRow({ item }: { item: TimelineItem }) {
 export function SeniorDetailView({ senior, timeline }: Props) {
   return (
     <div className="overflow-auto h-full">
-      {/* Back breadcrumb */}
+      {/* Breadcrumb */}
       <div
-        className="px-6 py-3 border-b flex items-center"
-        style={{ background: "white", borderColor: "#D8E0EA" }}
+        className="px-6 py-3 flex items-center"
+        style={{ background: "white", borderBottom: "1px solid #F1F5F9" }}
       >
         <Link
           href="/seniors"
-          className="flex items-center gap-1 text-sm hover:underline"
-          style={{ color: "#1267D8" }}
+          className="flex items-center gap-1 transition-interactive hover:text-brand-blue"
+          style={{ fontSize: 13, color: "#667085", fontWeight: 500 }}
         >
           <ChevronLeft size={14} />
           Back to Seniors
@@ -81,80 +106,73 @@ export function SeniorDetailView({ senior, timeline }: Props) {
       </div>
 
       {/* Header */}
-      <div
-        className="px-6 py-5 border-b"
-        style={{ background: "white", borderColor: "#D8E0EA" }}
-      >
+      <div className="px-6 pt-5 pb-5" style={{ background: "white", borderBottom: "1px solid #E8EDF3" }}>
         {/* Name + badges */}
-        <div className="flex items-center gap-3 mb-4">
-          <h1 className="font-bold text-2xl" style={{ color: "#071D3A" }}>
+        <div className="flex items-center gap-3 mb-5">
+          <h1
+            className="font-bold"
+            style={{ fontSize: 24, color: "#071D3A", letterSpacing: "-0.04em" }}
+          >
             {senior.name}
           </h1>
           <RiskBadge risk={senior.heatRisk} />
           <span
-            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
-            style={{ background: "#EFF6FF", color: "#1267D8", border: "1px solid #BFDBFE" }}
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-[3px] font-medium"
+            style={{
+              fontSize: 11.5,
+              background: "#EFF6FF",
+              color: "#1267D8",
+              border: "1px solid #BFDBFE",
+            }}
           >
             <StatusDot status={senior.status} size={6} />
             {senior.status}
           </span>
         </div>
 
-        {/* Sub-header metrics */}
-        <div className="flex items-stretch gap-0 divide-x" style={{ borderColor: "#D8E0EA" }}>
+        {/* Metric strip */}
+        <div className="flex items-stretch divide-x" style={{ borderColor: "#E8EDF3" }}>
           {[
             {
               label: "Current Heat Risk",
               value: (
-                <span style={{ color: riskColor(senior.heatRisk), fontWeight: 600 }}>
+                <span className="font-semibold" style={{ color: riskColor(senior.heatRisk) }}>
                   {senior.heatRisk}
                 </span>
               ),
             },
             {
               label: "Latest Check-In",
-              value: <span style={{ color: "#071D3A" }}>{senior.latestCheckIn ?? "—"}</span>,
+              value: <span className="tabular">{senior.latestCheckIn ?? "—"}</span>,
             },
             {
               label: "Assigned Support",
-              value: (
-                <span style={{ color: "#071D3A" }}>{senior.assignedCaregiver ?? "—"}</span>
-              ),
+              value: <span>{senior.assignedCaregiver ?? "—"}</span>,
             },
             {
               label: "Recommended Action",
               value: senior.recommendedAction ? (
-                <ActionButton variant="warning" size="sm">
-                  {senior.recommendedAction}
-                </ActionButton>
+                <ActionButton variant="warning" size="sm">{senior.recommendedAction}</ActionButton>
               ) : (
-                <span style={{ color: "#667085" }}>None</span>
+                <span style={{ color: "#94A8BC" }}>None</span>
               ),
             },
           ].map(({ label, value }) => (
-            <div key={label} className="flex-1 px-5 py-0 first:pl-0">
-              <p className="text-xs mb-1" style={{ color: "#667085" }}>
-                {label}
-              </p>
-              <div className="text-sm">{value}</div>
+            <div key={label} className="flex-1 px-5 first:pl-0">
+              <p className="label-caps mb-1">{label}</p>
+              <div style={{ fontSize: 13, color: "#071D3A" }}>{value}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Main 2-col layout */}
-      <div className="flex gap-6 p-6">
-        {/* Left: Recent Activity */}
+      {/* Body */}
+      <div className="flex gap-5 p-6">
+        {/* Left: Timeline */}
         <div className="flex-1 min-w-0">
-          <div
-            className="rounded-lg"
-            style={{ background: "white", border: "1px solid #D8E0EA" }}
-          >
-            <div
-              className="px-5 py-4 border-b"
-              style={{ borderColor: "#D8E0EA" }}
-            >
-              <h2 className="font-semibold text-sm" style={{ color: "#071D3A" }}>
+          <div className="rounded-xl overflow-hidden" style={{ background: "white", boxShadow: CARD_SHADOW }}>
+            <div className="px-5 py-4" style={{ borderBottom: "1px solid #F1F5F9" }}>
+              <h2 className="font-semibold" style={{ fontSize: 13.5, color: "#071D3A", letterSpacing: "-0.01em" }}>
                 Recent Activity
               </h2>
             </div>
@@ -163,10 +181,10 @@ export function SeniorDetailView({ senior, timeline }: Props) {
                 <TimelineItemRow key={item.id} item={item} />
               ))}
             </div>
-            <div className="px-5 py-3">
+            <div className="px-5 py-3.5">
               <button
-                className="text-xs hover:underline"
-                style={{ color: "#1267D8" }}
+                className="transition-interactive hover:text-brand-blue"
+                style={{ fontSize: 12.5, color: "#1267D8", fontWeight: 500 }}
               >
                 View full activity history →
               </button>
@@ -175,124 +193,81 @@ export function SeniorDetailView({ senior, timeline }: Props) {
         </div>
 
         {/* Right: Profile + Actions */}
-        <div className="w-72 shrink-0 space-y-4">
-          {/* Senior Profile */}
-          <div
-            className="rounded-lg"
-            style={{ background: "white", border: "1px solid #D8E0EA" }}
-          >
-            <div
-              className="px-5 py-4 border-b"
-              style={{ borderColor: "#D8E0EA" }}
-            >
-              <h2 className="font-semibold text-sm" style={{ color: "#071D3A" }}>
+        <div className="w-[272px] shrink-0 space-y-4">
+          {/* Profile */}
+          <div className="rounded-xl overflow-hidden" style={{ background: "white", boxShadow: CARD_SHADOW }}>
+            <div className="px-5 py-4" style={{ borderBottom: "1px solid #F1F5F9" }}>
+              <h2 className="font-semibold" style={{ fontSize: 13.5, color: "#071D3A" }}>
                 Senior Profile
               </h2>
             </div>
-            <div className="px-5 py-4 space-y-3">
+            <div className="px-5 py-4 space-y-4">
               {senior.phone && (
-                <div className="flex items-start gap-3">
-                  <Phone size={13} className="shrink-0 mt-0.5" style={{ color: "#667085" }} />
-                  <div>
-                    <p className="text-xs" style={{ color: "#667085" }}>
-                      Phone
-                    </p>
-                    <p className="text-sm font-medium" style={{ color: "#071D3A" }}>
-                      {senior.phone}
-                    </p>
-                  </div>
-                </div>
+                <ProfileRow
+                  icon={<Phone size={13} />}
+                  label="Phone"
+                  value={<span className="font-medium tabular">{senior.phone}</span>}
+                />
               )}
               {senior.address && (
-                <div className="flex items-start gap-3">
-                  <MapPin size={13} className="shrink-0 mt-0.5" style={{ color: "#667085" }} />
-                  <div>
-                    <p className="text-xs" style={{ color: "#667085" }}>
-                      Address
-                    </p>
-                    <p className="text-sm font-medium" style={{ color: "#071D3A" }}>
-                      {senior.address}
-                    </p>
-                  </div>
-                </div>
+                <ProfileRow
+                  icon={<MapPin size={13} />}
+                  label="Address"
+                  value={<span className="font-medium">{senior.address}</span>}
+                />
               )}
               {senior.preferredContactTime && (
-                <div className="flex items-start gap-3">
-                  <Clock size={13} className="shrink-0 mt-0.5" style={{ color: "#667085" }} />
-                  <div>
-                    <p className="text-xs" style={{ color: "#667085" }}>
-                      Preferred Contact Time
-                    </p>
-                    <p className="text-sm font-medium" style={{ color: "#071D3A" }}>
-                      {senior.preferredContactTime}
-                    </p>
-                  </div>
-                </div>
+                <ProfileRow
+                  icon={<Clock size={13} />}
+                  label="Contact Window"
+                  value={<span className="font-medium tabular">{senior.preferredContactTime}</span>}
+                />
               )}
               {senior.medicalNotes && (
-                <div className="flex items-start gap-3">
-                  <Heart size={13} className="shrink-0 mt-0.5" style={{ color: "#667085" }} />
-                  <div>
-                    <p className="text-xs" style={{ color: "#667085" }}>
-                      Medical Notes
-                    </p>
-                    <p className="text-sm" style={{ color: "#071D3A" }}>
-                      {senior.medicalNotes}
-                    </p>
-                  </div>
-                </div>
+                <ProfileRow
+                  icon={<Heart size={13} />}
+                  label="Medical Notes"
+                  value={senior.medicalNotes}
+                />
               )}
               {senior.emergencyContact && (
-                <div className="flex items-start gap-3">
-                  <User size={13} className="shrink-0 mt-0.5" style={{ color: "#667085" }} />
-                  <div>
-                    <p className="text-xs" style={{ color: "#667085" }}>
-                      Emergency Contact
-                    </p>
-                    <p className="text-sm" style={{ color: "#071D3A" }}>
-                      {senior.emergencyContact}
-                    </p>
-                  </div>
-                </div>
+                <ProfileRow
+                  icon={<User size={13} />}
+                  label="Emergency Contact"
+                  value={<span className="font-medium">{senior.emergencyContact}</span>}
+                />
               )}
 
               {/* Support Network */}
               {(senior.supportMode || senior.livingSituation) && (
                 <div
-                  className="pt-3 mt-1 space-y-2.5 border-t"
-                  style={{ borderColor: "#F1F5F9" }}
+                  className="pt-4 mt-1 space-y-3"
+                  style={{ borderTop: "1px solid #F1F5F9" }}
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#667085" }}>
-                    Support Network
-                  </p>
+                  <p className="label-caps">Support Network</p>
+
                   {senior.livingSituation && (
-                    <div className="flex items-start gap-3">
-                      <Home size={13} className="shrink-0 mt-0.5" style={{ color: "#667085" }} />
-                      <div>
-                        <p className="text-xs" style={{ color: "#667085" }}>Living Situation</p>
-                        <p className="text-sm font-medium" style={{ color: "#071D3A" }}>
-                          {senior.livingSituation}
-                        </p>
-                      </div>
-                    </div>
+                    <ProfileRow
+                      icon={<Home size={13} />}
+                      label="Living Situation"
+                      value={<span className="font-medium">{senior.livingSituation}</span>}
+                    />
                   )}
                   {senior.supportMode && (
-                    <div className="flex items-start gap-3">
-                      <ShieldCheck size={13} className="shrink-0 mt-0.5" style={{ color: "#667085" }} />
-                      <div>
-                        <p className="text-xs" style={{ color: "#667085" }}>Support Mode</p>
-                        <p className="text-sm font-medium" style={{ color: "#071D3A" }}>
-                          {senior.supportMode}
-                        </p>
-                      </div>
-                    </div>
+                    <ProfileRow
+                      icon={<ShieldCheck size={13} />}
+                      label="Support Mode"
+                      value={<span className="font-medium">{senior.supportMode}</span>}
+                    />
                   )}
                   <div
-                    className="text-xs leading-relaxed rounded-md px-3 py-2"
+                    className="rounded-lg px-3 py-2"
                     style={{
                       background: senior.hasSupportContact === false ? "#FEF2F2" : "#F8FAFC",
                       color: senior.hasSupportContact === false ? "#B42318" : "#667085",
-                      border: senior.hasSupportContact === false ? "1px solid #FECACA" : "1px solid #D8E0EA",
+                      border: senior.hasSupportContact === false ? "1px solid #FECACA" : "1px solid #E8EDF3",
+                      fontSize: 12,
+                      lineHeight: 1.5,
                     }}
                   >
                     {senior.hasSupportContact === false
@@ -300,8 +275,8 @@ export function SeniorDetailView({ senior, timeline }: Props) {
                       : `${senior.supportContactCount ?? 0} support contact${senior.supportContactCount === 1 ? "" : "s"} on file.`}
                   </div>
                   {senior.escalationPlanSummary && (
-                    <p className="text-xs leading-relaxed" style={{ color: "#667085" }}>
-                      <span className="font-medium">Escalation plan: </span>
+                    <p style={{ fontSize: 12, color: "#667085", lineHeight: 1.5 }}>
+                      <span className="font-medium">Escalation: </span>
                       {senior.escalationPlanSummary}
                     </p>
                   )}
@@ -312,23 +287,20 @@ export function SeniorDetailView({ senior, timeline }: Props) {
 
           {/* Take Action */}
           <div
-            className="rounded-lg p-5 space-y-2.5"
-            style={{ background: "white", border: "1px solid #D8E0EA" }}
+            className="rounded-xl p-5 space-y-2"
+            style={{ background: "white", boxShadow: CARD_SHADOW }}
           >
-            <h2 className="font-semibold text-sm mb-3" style={{ color: "#071D3A" }}>
+            <h2 className="font-semibold mb-3" style={{ fontSize: 13.5, color: "#071D3A" }}>
               Take Action
             </h2>
             <ActionButton variant="secondary" size="sm" className="w-full justify-center gap-2">
-              <PhoneCall size={13} />
-              Call Senior
+              <PhoneCall size={13} /> Call Senior
             </ActionButton>
             <ActionButton variant="secondary" size="sm" className="w-full justify-center gap-2">
-              <MessageSquare size={13} />
-              Message Support
+              <MessageSquare size={13} /> Message Support
             </ActionButton>
             <ActionButton variant="warning" size="sm" className="w-full justify-center gap-2">
-              <FileText size={13} />
-              Dispatch Wellness Check
+              <FileText size={13} /> Dispatch Wellness Check
             </ActionButton>
           </div>
         </div>

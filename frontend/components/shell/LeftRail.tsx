@@ -15,90 +15,91 @@ import {
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/seniors", label: "Seniors", icon: Users },
-  { href: "/map", label: "Map", icon: Map },
+  { href: "/seniors",   label: "Seniors",   icon: Users },
+  { href: "/map",       label: "Map",        icon: Map },
   { href: "/heat-checks/live-eleanor", label: "Heat Checks", icon: PhoneCall },
-  { href: "/alerts", label: "Alerts", icon: Bell },
+  { href: "/alerts",    label: "Alerts",     icon: Bell },
 ];
 
-const BOTTOM_NAV = [
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+const BOTTOM_NAV = [{ href: "/settings", label: "Settings", icon: Settings }];
 
 export function LeftRail() {
   const pathname = usePathname();
 
   function isActive(href: string) {
-    if (href === "/heat-checks/live-eleanor") {
-      return pathname.startsWith("/heat-checks");
-    }
-    if (href === "/seniors") {
-      return pathname.startsWith("/seniors");
-    }
+    if (href === "/heat-checks/live-eleanor") return pathname.startsWith("/heat-checks");
+    if (href === "/seniors") return pathname.startsWith("/seniors");
     return pathname === href || pathname.startsWith(href + "/");
   }
 
   return (
     <aside
-      className="flex flex-col h-full"
-      style={{
-        width: 220,
-        minWidth: 220,
-        background: "#071D3A",
-        borderRight: "1px solid #0D3560",
-      }}
+      className="flex flex-col h-full shrink-0"
+      style={{ width: 220, minWidth: 220, background: "#071D3A", borderRight: "1px solid #0C2E52" }}
     >
       {/* Brand */}
-      <div className="flex items-center gap-2.5 px-5 py-5 border-b" style={{ borderColor: "#0D3560" }}>
-        <div
-          className="flex items-center justify-center rounded"
-          style={{ width: 28, height: 28 }}
-        >
-          <Activity size={20} color="#22C7C9" strokeWidth={2} />
+      <div
+        className="flex items-center gap-2.5 px-5 py-[18px]"
+        style={{ borderBottom: "1px solid #0C2E52" }}
+      >
+        <div className="flex items-center justify-center rounded-lg" style={{ width: 28, height: 28 }}>
+          <Activity size={19} color="#22C7C9" strokeWidth={2.25} />
         </div>
         <span
-          className="text-white font-semibold leading-tight"
-          style={{ fontSize: 12.5 }}
+          className="text-white font-semibold leading-snug"
+          style={{ fontSize: 12.5, letterSpacing: "-0.01em" }}
         >
           Senior Heat<br />Voice Lab
         </span>
       </div>
 
       {/* Main nav */}
-      <nav className="flex-1 pt-2 px-2">
+      <nav className="flex-1 pt-2 px-2 space-y-px">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);
           return (
             <Link
               key={href}
               href={href}
-              className="relative flex items-center gap-3 rounded px-3 py-2.5 mb-0.5 transition-colors group"
+              className="relative flex items-center gap-2.5 rounded-md px-3 py-[9px] group transition-interactive"
               style={{
-                color: active ? "#22C7C9" : "#8FA8C8",
-                background: active ? "rgba(34,199,201,0.08)" : "transparent",
+                color: active ? "#22C7C9" : "#6D90B0",
+                background: active ? "rgba(34,199,201,0.09)" : "transparent",
+              }}
+              onMouseEnter={(e) => {
+                if (!active) {
+                  (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+                  (e.currentTarget as HTMLElement).style.color = "#9ABCD4";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!active) {
+                  (e.currentTarget as HTMLElement).style.background = "transparent";
+                  (e.currentTarget as HTMLElement).style.color = "#6D90B0";
+                }
               }}
             >
               {active && (
                 <span
-                  className="absolute left-0 top-1 bottom-1 rounded-full"
+                  className="absolute left-0 top-[7px] bottom-[7px] rounded-full"
                   style={{ width: 3, background: "#22C7C9" }}
                 />
               )}
               <Icon
-                size={16}
-                strokeWidth={active ? 2 : 1.75}
-                color={active ? "#22C7C9" : "#8FA8C8"}
+                size={15}
+                strokeWidth={active ? 2.25 : 1.75}
+                color="currentColor"
               />
               <span
-                className="text-sm font-medium"
-                style={{ color: active ? "#22C7C9" : "#8FA8C8" }}
+                className="font-medium"
+                style={{ fontSize: 13, letterSpacing: "-0.005em" }}
               >
                 {label}
               </span>
               {label === "Alerts" && (
                 <span
-                  className="ml-auto text-xs font-semibold rounded-full px-1.5 py-0.5 leading-none"
-                  style={{ background: "#E52920", color: "white", fontSize: 10 }}
+                  className="ml-auto flex items-center justify-center rounded-full font-bold text-white"
+                  style={{ width: 18, height: 18, background: "#E52920", fontSize: 9 }}
                 >
                   3
                 </span>
@@ -108,49 +109,53 @@ export function LeftRail() {
         })}
       </nav>
 
-      {/* Bottom nav */}
-      <div className="px-2 pb-2 border-t" style={{ borderColor: "#0D3560" }}>
-        <div className="pt-2">
+      {/* Bottom */}
+      <div className="px-2 pb-2" style={{ borderTop: "1px solid #0C2E52" }}>
+        <div className="pt-2 space-y-px">
           {BOTTOM_NAV.map(({ href, label, icon: Icon }) => {
             const active = isActive(href);
             return (
               <Link
                 key={href}
                 href={href}
-                className="flex items-center gap-3 rounded px-3 py-2.5 transition-colors"
+                className="flex items-center gap-2.5 rounded-md px-3 py-[9px] transition-interactive"
                 style={{
-                  color: active ? "#22C7C9" : "#8FA8C8",
-                  background: active ? "rgba(34,199,201,0.08)" : "transparent",
+                  color: active ? "#22C7C9" : "#6D90B0",
+                  background: active ? "rgba(34,199,201,0.09)" : "transparent",
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) {
+                    (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+                    (e.currentTarget as HTMLElement).style.color = "#9ABCD4";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) {
+                    (e.currentTarget as HTMLElement).style.background = "transparent";
+                    (e.currentTarget as HTMLElement).style.color = "#6D90B0";
+                  }
                 }}
               >
-                <Icon size={16} strokeWidth={1.75} />
-                <span className="text-sm font-medium">{label}</span>
+                <Icon size={15} strokeWidth={1.75} color="currentColor" />
+                <span className="font-medium" style={{ fontSize: 13 }}>{label}</span>
               </Link>
             );
           })}
         </div>
 
-        {/* Status */}
         <div className="flex items-center gap-2.5 px-3 py-3 mt-1">
           <div
-            className="flex items-center justify-center rounded-full"
+            className="flex items-center justify-center rounded-full shrink-0"
             style={{ width: 28, height: 28, background: "#09294D" }}
           >
-            <Wifi size={13} color="#22C7C9" />
+            <Wifi size={13} color="#22C7C9" strokeWidth={2} />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span
-                className="rounded-full"
-                style={{ width: 6, height: 6, background: "#22C55E", display: "inline-block" }}
-              />
-              <span className="text-xs font-medium" style={{ color: "#E2EAF4" }}>
-                Connected
-              </span>
+              <span className="rounded-full" style={{ width: 6, height: 6, background: "#22C55E", display: "inline-block" }} />
+              <span className="font-semibold" style={{ fontSize: 11.5, color: "#D4E4F0" }}>Connected</span>
             </div>
-            <div className="text-xs" style={{ color: "#5A7EA8", lineHeight: "1.3" }}>
-              Daily Check
-            </div>
+            <div style={{ fontSize: 11, color: "#3D607E", lineHeight: 1.4 }}>Daily Check</div>
           </div>
         </div>
       </div>

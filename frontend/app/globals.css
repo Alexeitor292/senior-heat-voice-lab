@@ -2,51 +2,106 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design Tokens ──────────────────────────────────────────────── */
 :root {
-  --navy: #071D3A;
-  --navy-2: #09294D;
-  --teal: #22C7C9;
-  --blue: #1267D8;
-  --orange: #F59E0B;
-  --red: #E52920;
-  --canvas: #F8FAFC;
-  --line: #D8E0EA;
-  --text: #071D3A;
-  --muted: #667085;
+  --navy:    #071D3A;
+  --navy-2:  #09294D;
+  --teal:    #22C7C9;
+  --blue:    #1267D8;
+  --orange:  #F59E0B;
+  --red:     #E52920;
+  --canvas:  #F8FAFC;
+  --line:    #D8E0EA;
+  --text:    #071D3A;
+  --muted:   #667085;
+
+  /* Shadow scale */
+  --shadow-xs:   0 1px 2px 0 rgb(7 29 58 / 0.04);
+  --shadow-sm:   0 0 0 1px #E8EDF3, 0 1px 3px 0 rgb(7 29 58 / 0.05);
+  --shadow-md:   0 0 0 1px #D8E0EA, 0 2px 8px 0 rgb(7 29 58 / 0.08);
+  --shadow-lg:   0 0 0 1px #D0D9E4, 0 4px 16px 0 rgb(7 29 58 / 0.12);
+
+  /* Timing */
+  --ease:        cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --t-fast:      120ms;
+  --t-base:      180ms;
 }
 
-* {
-  box-sizing: border-box;
+/* ─── Base ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  font-feature-settings: "rlig" 1, "calt" 1;
 }
 
-html,
-body {
+html, body {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   background: var(--canvas);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Thin scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ─── Focus ──────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--line);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #b0bec5;
+*:focus:not(:focus-visible) { outline: none; }
+
+/* ─── Selection ──────────────────────────────────────────────────── */
+::selection {
+  background: rgba(34, 199, 201, 0.15);
+  color: inherit;
 }
 
-/* Divider utility */
-.divider {
-  border-top: 1px solid var(--line);
+/* ─── Scrollbar ──────────────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 5px; height: 5px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: #CDD5DF; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #A8B5C4; }
+
+/* ─── Typography Utilities ───────────────────────────────────────── */
+.label-caps {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.font-data {
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Transition Utilities ───────────────────────────────────────── */
+.transition-interactive {
+  transition: background-color var(--t-fast) var(--ease),
+              border-color    var(--t-fast) var(--ease),
+              box-shadow      var(--t-fast) var(--ease),
+              color           var(--t-fast) var(--ease),
+              opacity         var(--t-fast) var(--ease);
+}
+
+/* ─── Divider ────────────────────────────────────────────────────── */
+.divider { border-top: 1px solid var(--line); }
+
+/* ─── Input Focus (teal ring) ────────────────────────────────────── */
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--teal) !important;
+  box-shadow: 0 0 0 3px rgba(34, 199, 201, 0.12);
 }
