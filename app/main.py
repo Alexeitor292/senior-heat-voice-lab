@@ -5,13 +5,14 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.db.database import init_db
+from app.routes.baselines import router as baselines_router
 from app.routes.calls import router as calls_router
+from app.routes.dashboard import router as dashboard_router
 from app.routes.heat_risk import router as heat_risk_router
 from app.routes.schedules import router as schedules_router
 from app.routes.seniors import router as seniors_router
 from app.routes.twilio_webhooks import router as twilio_router
-from app.routes.baselines import router as baselines_router
-from app.routes.dashboard import router as dashboard_router
+from app.security.basic_auth import BasicDashboardAuthMiddleware
 from app.services.checkin_store_service import checkin_store_service
 from app.services.profile_service import profile_service
 
@@ -29,6 +30,8 @@ app = FastAPI(
     description="Prototype for senior heat safety phone check-ins.",
     lifespan=lifespan,
 )
+
+app.add_middleware(BasicDashboardAuthMiddleware)
 
 app.mount(
     "/ui",
@@ -52,6 +55,7 @@ def root():
         "environment": settings.app_env,
         "status": "running",
         "dashboard_ui": "/ui",
+        "dashboard_auth_enabled": settings.dashboard_auth_enabled,
     }
 
 

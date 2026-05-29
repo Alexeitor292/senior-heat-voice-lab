@@ -24,10 +24,14 @@ class Settings(BaseSettings):
     manual_heat_risk_value: int = 2
     nws_user_agent: str = "SeniorHeatVoiceLab/0.1 local-dev"
 
+    dashboard_auth_enabled: bool = True
+    admin_username: str = "admin"
+    admin_password: str = "change-me-local-dev"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore"
+        extra="ignore",
     )
 
 
