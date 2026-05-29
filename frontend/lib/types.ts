@@ -163,3 +163,73 @@ export interface MapViewData {
   selectedSeniorId?: string | number | null;
   urgentOutreach: UrgentOutreachItem[];
 }
+
+export interface EscalationPlan {
+  id: number;
+  senior_id: number;
+  living_situation: LivingSituation | string;
+  support_mode: SupportMode | string;
+  allow_operator_review: boolean;
+  allow_wellness_check: boolean;
+  allow_emergency_escalation: boolean;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SupportContact {
+  id: string | number;
+  source?: "support_contact" | "legacy_caregiver";
+  senior_id: number;
+  name: string;
+  phone_number: string;
+  relationship?: string | null;
+  contact_type: string;
+  priority: number;
+  can_receive_alerts: boolean;
+  is_emergency_contact: boolean;
+  is_active: boolean;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface EscalationStep {
+  id: number;
+  plan_id: number;
+  step_order: number;
+  trigger_level: string;
+  action_type: string;
+  target_contact_id?: number | null;
+  instructions?: string | null;
+  is_active: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SupportNetwork {
+  senior_id: number;
+  plan: EscalationPlan | null;
+  support_contacts: SupportContact[];
+  steps: EscalationStep[];
+}
+
+export interface EscalationPlanPayload {
+  living_situation: string;
+  support_mode: string;
+  allow_operator_review: boolean;
+  allow_wellness_check: boolean;
+  allow_emergency_escalation: boolean;
+  notes?: string | null;
+}
+
+export interface SupportContactPayload {
+  name: string;
+  phone_number: string;
+  relationship?: string | null;
+  contact_type: string;
+  priority: number;
+  can_receive_alerts: boolean;
+  is_emergency_contact: boolean;
+  notes?: string | null;
+}

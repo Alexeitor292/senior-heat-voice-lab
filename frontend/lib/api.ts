@@ -8,6 +8,9 @@ import type {
   PriorityItem,
   ScheduleItem,
   HeatTrendPoint,
+  SupportNetwork,
+  EscalationPlanPayload,
+  SupportContactPayload,
 } from "./types";
 
 import {
@@ -28,6 +31,27 @@ async function apiFetch<T>(path: string): Promise<T> {
 
   if (!res.ok) {
     throw new Error(`API error ${res.status}: ${path}`);
+  }
+
+  return res.json() as Promise<T>;
+}
+
+async function apiSend<T>(
+  path: string,
+  options: {
+    method: "POST" | "PUT" | "PATCH" | "DELETE";
+    body?: unknown;
+  }
+): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: options.method,
+    headers: options.body ? { "Content-Type": "application/json" } : undefined,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+
+  if (!res.ok) {
+    const message = await res.text().catch(() => "");
+    throw new Error(message || `API error ${res.status}: ${path}`);
   }
 
   return res.json() as Promise<T>;
@@ -107,6 +131,57 @@ export async function getSeniorTimeline(
   } catch {
     return MOCK_TIMELINE;
   }
+}
+
+// Support Network --------------------------------------------------------
+
+export async function getSupportNetwork(
+  seniorId: string | number
+): Promise<SupportNetwork> {
+  return apiFetch<SupportNetwork>(`/seniors/${seniorId}/support-network`);
+}
+
+export async function updateEscalationPlan(
+  seniorId: string | number,
+  payload: EscalationPlanPayload
+): Promise<{ message: string; plan: SupportNetwork["plan"] }> {
+  return apiSend<{ message: string; plan: SupportNetwork["plan"] }>(
+    `/seniors/${seniorId}/escalation-plan`,
+    {
+      method: "PUT",
+      body: payload,
+    }
+  );
+}
+
+export async function createSupportContact(
+  seniorId: string | number,
+  payload: SupportContactPayload
+): Promise<{
+  message: string;
+  support_contact: SupportNetwork["support_contacts"][number];
+}> {
+  return apiSend<{
+    message: string;
+    support_contact: SupportNetwork["support_contacts"][number];
+  }>(`/seniors/${seniorId}/support-contacts`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function deactivateSupportContact(
+  contactId: string | number
+): Promise<{
+  message: string;
+  support_contact: SupportNetwork["support_contacts"][number];
+}> {
+  return apiSend<{
+    message: string;
+    support_contact: SupportNetwork["support_contacts"][number];
+  }>(`/support-contacts/${contactId}`, {
+    method: "DELETE",
+  });
 }
 
 // Dashboard --------------------------------------------------------------
