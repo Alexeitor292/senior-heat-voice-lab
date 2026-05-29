@@ -1,20 +1,90 @@
+# =========================
 # Python
+# =========================
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 .Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# =========================
+# Virtual environments
+# =========================
 venv/
+.venv/
+env/
+ENV/
+
+# =========================
+# Environment / secrets
+# =========================
 .env
 .env.local
+.env.*.local
 
-# IDE
+# Keep examples committed
+!.env.example
+
+# =========================
+# Local database files
+# =========================
+data/*.db
+data/*.db-journal
+data/*.sqlite
+data/*.sqlite3
+
+# Keep data folder if needed
+!data/.gitkeep
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Test / coverage output
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# =========================
+# Type checking / lint caches
+# =========================
+.mypy_cache/
+.ruff_cache/
+.pyright/
+.pyre/
+
+# =========================
+# IDE / editor
+# =========================
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# OS
+# =========================
+# OS files
+# =========================
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
+# =========================
+# ngrok / local tunneling
+# =========================
+ngrok.yml
+.ngrok2/
+
+# =========================
+# Local temporary files
+# =========================
+tmp/
+temp/
+*.tmp
