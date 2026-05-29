@@ -7,10 +7,7 @@ import {
   Clock,
   User,
   Phone,
-  FileText,
   Heart,
-  PhoneCall,
-  MessageSquare,
   CheckCircle,
   XCircle,
   Info,
@@ -20,6 +17,7 @@ import {
 import { SupportNetworkEditor } from "@/components/forms/SupportNetworkEditor";
 import { HeatSettingsEditor } from "@/components/forms/HeatSettingsEditor";
 import { DemographicsEditor } from "@/components/forms/DemographicsEditor";
+import { SeniorActionPanel } from "@/components/forms/SeniorActionPanel";
 import type { Senior, TimelineItem } from "@/lib/types";
 import { RiskBadge } from "@/components/ui/RiskBadge";
 import { StatusDot } from "@/components/ui/StatusDot";
@@ -294,24 +292,7 @@ export function SeniorDetailView({ senior, timeline }: Props) {
 
           <SupportNetworkEditor senior={senior} />
 
-          {/* Take Action */}
-          <div
-            className="rounded-xl p-5 space-y-2"
-            style={{ background: "white", boxShadow: CARD_SHADOW }}
-          >
-            <h2 className="font-semibold mb-3" style={{ fontSize: 13.5, color: "#071D3A" }}>
-              Take Action
-            </h2>
-            <ActionButton variant="secondary" size="sm" className="w-full justify-center gap-2">
-              <PhoneCall size={13} /> Call Senior
-            </ActionButton>
-            <ActionButton variant="secondary" size="sm" className="w-full justify-center gap-2">
-              <MessageSquare size={13} /> Message Support
-            </ActionButton>
-            <ActionButton variant="warning" size="sm" className="w-full justify-center gap-2">
-              <FileText size={13} /> Dispatch Wellness Check
-            </ActionButton>
-          </div>
+          <SeniorActionPanel senior={senior} />
         </div>
       </div>
     </div>

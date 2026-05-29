@@ -301,3 +301,12 @@ export interface SeniorDemographicsPayload {
   primary_language?: string | null;
   notes?: string | null;
 }
+
+export interface StartHeatCheckResponse {
+  message: string;
+  callSid: string;
+  call_sid?: string;
+  nextStep?: string;
+  next_step?: string;
+  session?: unknown;
+}

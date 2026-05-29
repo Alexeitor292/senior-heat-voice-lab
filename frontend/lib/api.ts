@@ -16,8 +16,8 @@ import type {
   HeatRiskResult,
   SeniorDemographics,
   SeniorDemographicsPayload,
+  StartHeatCheckResponse,
 } from "./types";
-
 import {
   MOCK_SENIORS,
   MOCK_ALERTS,
@@ -313,24 +313,21 @@ export async function getHeatCheck(id: string): Promise<HeatCheck | null> {
 
 export async function startHeatCheck(
   seniorId: string | number
-): Promise<{ callSid: string }> {
+): Promise<StartHeatCheckResponse> {
   const res = await fetch(`${BASE}/seniors/${seniorId}/start-check-in`, {
     method: "POST",
   });
 
   if (!res.ok) {
-    throw new Error("Failed to start heat check");
+    const message = await res.text().catch(() => "");
+    throw new Error(message || "Failed to start heat check");
   }
 
-  return res.json();
-}
-
-export async function dispatchWellnessCheck(
-  seniorId: string | number
-): Promise<{ message: string }> {
-  console.log("[TODO] Dispatch wellness check for senior", seniorId);
+  const data = await res.json();
 
   return {
-    message: "Wellness check dispatched (mock)",
+    ...data,
+    callSid: data.callSid ?? data.call_sid,
+    nextStep: data.nextStep ?? data.next_step,
   };
 }
