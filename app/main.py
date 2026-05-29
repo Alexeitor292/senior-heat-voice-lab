@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.db.database import init_db
@@ -13,7 +14,6 @@ from app.routes.baselines import router as baselines_router
 from app.routes.dashboard import router as dashboard_router
 from app.services.checkin_store_service import checkin_store_service
 from app.services.profile_service import profile_service
-
 
 
 @asynccontextmanager
@@ -30,13 +30,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.mount(
+    "/ui",
+    StaticFiles(directory="app/static", html=True),
+    name="ui",
+)
+
 app.include_router(calls_router)
 app.include_router(seniors_router)
 app.include_router(schedules_router)
 app.include_router(heat_risk_router)
 app.include_router(baselines_router)
-app.include_router(twilio_router)
 app.include_router(dashboard_router)
+app.include_router(twilio_router)
 
 
 @app.get("/")
@@ -45,6 +51,7 @@ def root():
         "service": settings.app_name,
         "environment": settings.app_env,
         "status": "running",
+        "dashboard_ui": "/ui",
     }
 
 
