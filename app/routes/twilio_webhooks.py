@@ -6,7 +6,7 @@ from twilio.twiml.voice_response import VoiceResponse
 
 from app.config import settings
 from app.services.alert_service import alert_service
-from app.services.alert_store import alert_store
+from app.services.checkin_store_service import checkin_store_service
 from app.services.risk_analysis_service import risk_analysis_service
 
 router = APIRouter(prefix="/twilio", tags=["Twilio Webhooks"])
@@ -118,7 +118,7 @@ async def heat_check_response(request: Request):
 @router.post("/voice/heat-check-speech")
 async def heat_check_speech():
     """
-    Step 3, Step 4, and Step 5 speech check-in.
+    Step 3 through Step 6 speech check-in.
     """
 
     response = VoiceResponse()
@@ -153,34 +153,50 @@ async def heat_check_speech():
 @router.post("/voice/heat-check-speech-response")
 async def heat_check_speech_response(request: Request):
     """
-    Step 5 speech response handler.
+    Step 6 speech response handler.
 
     Twilio sends the speech transcript here as SpeechResult.
     We send the transcript to the LLM for structured risk analysis.
+    We save the check-in to SQLite.
     If the risk is YELLOW, RED, or UNKNOWN, we call the caregiver.
     """
 
     form = parse_twilio_form(await request.body())
 
     call_sid = form.get("CallSid")
-    speech_result = form.get("SpeechResult")
+    speech_result = form.get("SpeechResult") or ""
     confidence = form.get("Confidence")
     from_number = form.get("From")
     to_number = form.get("To")
 
     analysis = risk_analysis_service.analyze_transcript(
-        transcript=speech_result or "",
-        speech_confidence=confidence
+        transcript=speech_result,
+        speech_confidence=confidence,
+    )
+
+    risk_level = analysis.get("risk_level", "UNKNOWN")
+    caregiver_alert_required = alert_service.should_alert_caregiver(risk_level)
+
+    check_in = checkin_store_service.create_check_in(
+        senior_call_sid=call_sid,
+        from_number=from_number,
+        to_number=to_number,
+        transcript=speech_result,
+        speech_confidence=confidence,
+        risk_analysis=analysis,
+        caregiver_alert_required=caregiver_alert_required,
     )
 
     alert_result = alert_service.send_caregiver_voice_alert(
         risk_analysis=analysis,
-        transcript=speech_result or "",
-        call_sid=call_sid
+        transcript=speech_result,
+        call_sid=call_sid,
+        check_in_id=check_in.id,
     )
 
     print("\nHeat Check Speech Response")
     print("--------------------------")
+    print(f"Check-in ID: {check_in.id}")
     print(f"Call SID: {call_sid}")
     print(f"From: {from_number}")
     print(f"To: {to_number}")
@@ -195,7 +211,6 @@ async def heat_check_speech_response(request: Request):
     print("----------------------------")
     print(json.dumps(alert_result, indent=2))
 
-    risk_level = analysis.get("risk_level", "UNKNOWN")
     alert_sent = alert_result.get("alert_sent", False)
 
     response = VoiceResponse()
@@ -258,9 +273,10 @@ async def caregiver_alert_voice(alert_id: str):
     Twilio calls this endpoint when the caregiver answers.
 
     It reads the alert payload out loud.
+    The payload is now stored in SQLite.
     """
 
-    payload = alert_store.get_alert(alert_id)
+    payload = checkin_store_service.get_caregiver_alert_payload(alert_id)
 
     response = VoiceResponse()
 
@@ -367,8 +383,14 @@ async def twilio_status_callback(request: Request):
     print(f"Direction: {direction}")
     print(f"Duration: {call_duration}")
 
+    checkin_store_service.update_call_status_by_sid(
+        call_sid=call_sid,
+        call_status=call_status,
+        call_duration=call_duration,
+    )
+
     return {
         "received": True,
         "call_sid": call_sid,
-        "status": call_status
+        "status": call_status,
     }

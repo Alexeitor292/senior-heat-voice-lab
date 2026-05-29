@@ -1,7 +1,7 @@
 from typing import Any
 
 from app.config import settings
-from app.services.alert_store import alert_store
+from app.services.checkin_store_service import checkin_store_service
 from app.services.twilio_service import twilio_service
 
 
@@ -18,7 +18,8 @@ class AlertService:
         self,
         risk_analysis: dict[str, Any],
         transcript: str,
-        call_sid: str | None = None
+        call_sid: str | None = None,
+        check_in_id: int | None = None,
     ) -> dict[str, Any]:
         """
         Builds the payload that will be spoken to the caregiver.
@@ -59,13 +60,15 @@ class AlertService:
             "reported_symptoms": reported_symptoms,
             "red_flags": red_flags,
             "source_call_sid": call_sid,
+            "check_in_id": check_in_id,
         }
 
     def send_caregiver_voice_alert(
         self,
         risk_analysis: dict[str, Any],
         transcript: str,
-        call_sid: str | None = None
+        call_sid: str | None = None,
+        check_in_id: int | None = None,
     ) -> dict[str, Any]:
         """
         Calls the caregiver if the risk level requires escalation.
@@ -81,7 +84,7 @@ class AlertService:
                 "alert_sent": False,
                 "alert_type": "voice_call",
                 "reason": "Risk level does not require caregiver alert.",
-                "risk_level": risk_level
+                "risk_level": risk_level,
             }
 
         if not settings.caregiver_test_phone_number:
@@ -89,21 +92,32 @@ class AlertService:
                 "alert_sent": False,
                 "alert_type": "voice_call",
                 "reason": "CAREGIVER_TEST_PHONE_NUMBER is not configured.",
-                "risk_level": risk_level
+                "risk_level": risk_level,
             }
 
         payload = self.build_caregiver_voice_payload(
             risk_analysis=risk_analysis,
             transcript=transcript,
-            call_sid=call_sid
+            call_sid=call_sid,
+            check_in_id=check_in_id,
         )
 
-        alert_id = alert_store.create_alert(payload)
+        alert = checkin_store_service.create_caregiver_alert(
+            check_in_id=check_in_id,
+            risk_level=risk_level,
+            caregiver_phone_number=settings.caregiver_test_phone_number,
+            payload=payload,
+        )
 
         try:
             call = twilio_service.start_caregiver_voice_alert_call(
                 caregiver_phone_number=settings.caregiver_test_phone_number,
-                alert_id=alert_id
+                alert_id=alert.id,
+            )
+
+            checkin_store_service.mark_caregiver_alert_call_started(
+                alert_id=alert.id,
+                caregiver_call_sid=call.sid,
             )
 
             return {
@@ -111,20 +125,25 @@ class AlertService:
                 "alert_type": "voice_call",
                 "risk_level": risk_level,
                 "to": settings.caregiver_test_phone_number,
-                "alert_id": alert_id,
+                "alert_id": alert.id,
                 "caregiver_call_sid": call.sid,
-                "message_preview": payload
+                "message_preview": payload,
             }
 
         except Exception as exc:
+            checkin_store_service.mark_caregiver_alert_failed(
+                alert_id=alert.id,
+                error_message=str(exc),
+            )
+
             return {
                 "alert_sent": False,
                 "alert_type": "voice_call",
                 "risk_level": risk_level,
                 "to": settings.caregiver_test_phone_number,
-                "alert_id": alert_id,
+                "alert_id": alert.id,
                 "error": str(exc),
-                "message_preview": payload
+                "message_preview": payload,
             }
 
 
