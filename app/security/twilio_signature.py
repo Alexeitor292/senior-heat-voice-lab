@@ -4,6 +4,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from twilio.request_validator import RequestValidator
 
 from app.config import settings
+from app.utils.safe_logging import safe_log_event
 
 
 def _is_twilio_path(path: str) -> bool:
@@ -110,11 +111,14 @@ class TwilioSignatureValidationMiddleware:
                 "body": response_body,
             })
 
-            print("\nInvalid Twilio signature")
-            print("------------------------")
-            print(f"Validated URL: {public_url}")
-            print(f"Path: {path}")
-            print("Check PUBLIC_BASE_URL and ngrok URL.")
+            safe_log_event(
+                "Invalid Twilio Signature",
+                {
+                    "validated_url": public_url,
+                    "path": path,
+                    "hint": "Check PUBLIC_BASE_URL and ngrok URL.",
+                },
+            )
 
             return
 

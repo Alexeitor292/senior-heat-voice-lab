@@ -30,6 +30,10 @@ class Settings(BaseSettings):
 
     twilio_signature_validation_enabled: bool = True
 
+    log_pii: bool = False
+    log_transcripts: bool = False
+    log_raw_analysis: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
