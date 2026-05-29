@@ -279,3 +279,25 @@ export interface HeatRiskResult {
   should_trigger_check_in: boolean;
   reason: string;
 }
+
+export interface SeniorDemographics {
+  id: number;
+  senior_id: number;
+  date_of_birth?: string | null;
+  age_years?: number | null;
+  gender?: string | null;
+  pronouns?: string | null;
+  primary_language?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface SeniorDemographicsPayload {
+  date_of_birth?: string | null;
+  age_years?: number | null;
+  gender?: string | null;
+  pronouns?: string | null;
+  primary_language?: string | null;
+  notes?: string | null;
+}

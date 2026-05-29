@@ -14,6 +14,8 @@ import type {
   HeatSettings,
   HeatSettingsPayload,
   HeatRiskResult,
+  SeniorDemographics,
+  SeniorDemographicsPayload,
 } from "./types";
 
 import {
@@ -215,6 +217,29 @@ export async function getCurrentHeatRisk(
 ): Promise<{ senior: Senior; result: HeatRiskResult }> {
   return apiFetch<{ senior: Senior; result: HeatRiskResult }>(
     `/seniors/${seniorId}/heat-risk`
+  );
+}
+
+// Demographics -----------------------------------------------------------
+
+export async function getSeniorDemographics(
+  seniorId: string | number
+): Promise<{ senior_id: number; demographics: SeniorDemographics }> {
+  return apiFetch<{ senior_id: number; demographics: SeniorDemographics }>(
+    `/seniors/${seniorId}/demographics`
+  );
+}
+
+export async function updateSeniorDemographics(
+  seniorId: string | number,
+  payload: SeniorDemographicsPayload
+): Promise<{ message: string; demographics: SeniorDemographics }> {
+  return apiSend<{ message: string; demographics: SeniorDemographics }>(
+    `/seniors/${seniorId}/demographics`,
+    {
+      method: "PUT",
+      body: payload,
+    }
   );
 }
 
