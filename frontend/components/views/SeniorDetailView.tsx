@@ -18,6 +18,7 @@ import {
   Home,
 } from "lucide-react";
 import { SupportNetworkEditor } from "@/components/forms/SupportNetworkEditor";
+import { HeatSettingsEditor } from "@/components/forms/HeatSettingsEditor";
 import type { Senior, TimelineItem } from "@/lib/types";
 import { RiskBadge } from "@/components/ui/RiskBadge";
 import { StatusDot } from "@/components/ui/StatusDot";
@@ -285,7 +286,9 @@ export function SeniorDetailView({ senior, timeline }: Props) {
               )}
             </div>
           </div>
-
+          
+          <HeatSettingsEditor senior={senior} />
+          
           <SupportNetworkEditor senior={senior} />
 
           {/* Take Action */}

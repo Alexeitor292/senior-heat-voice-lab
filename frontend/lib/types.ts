@@ -233,3 +233,49 @@ export interface SupportContactPayload {
   is_emergency_contact: boolean;
   notes?: string | null;
 }
+
+export interface HeatSettings {
+  id: number;
+  senior_id: number;
+  enabled: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+  timezone: string;
+  trigger_threshold: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface HeatSettingsPayload {
+  enabled: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+  timezone: string;
+  trigger_threshold: number;
+}
+
+export interface HeatRiskResult {
+  senior_id: number;
+  enabled?: boolean;
+  heat_settings?: HeatSettings;
+  observation?: {
+    id?: number;
+    senior_id?: number;
+    provider?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    heat_risk_value: number;
+    heat_risk_label: string;
+    source_url?: string | null;
+    observed_at?: string | null;
+  };
+  trigger_threshold?: number;
+  should_trigger_check_in: boolean;
+  reason: string;
+}

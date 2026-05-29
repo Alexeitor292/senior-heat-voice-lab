@@ -11,6 +11,9 @@ import type {
   SupportNetwork,
   EscalationPlanPayload,
   SupportContactPayload,
+  HeatSettings,
+  HeatSettingsPayload,
+  HeatRiskResult,
 } from "./types";
 
 import {
@@ -182,6 +185,37 @@ export async function deactivateSupportContact(
   }>(`/support-contacts/${contactId}`, {
     method: "DELETE",
   });
+}
+
+// Heat Settings ----------------------------------------------------------
+
+export async function getHeatSettings(
+  seniorId: string | number
+): Promise<{ senior: Senior; heat_settings: HeatSettings }> {
+  return apiFetch<{ senior: Senior; heat_settings: HeatSettings }>(
+    `/seniors/${seniorId}/heat-settings`
+  );
+}
+
+export async function updateHeatSettings(
+  seniorId: string | number,
+  payload: HeatSettingsPayload
+): Promise<{ message: string; heat_settings: HeatSettings }> {
+  return apiSend<{ message: string; heat_settings: HeatSettings }>(
+    `/seniors/${seniorId}/heat-settings`,
+    {
+      method: "PUT",
+      body: payload,
+    }
+  );
+}
+
+export async function getCurrentHeatRisk(
+  seniorId: string | number
+): Promise<{ senior: Senior; result: HeatRiskResult }> {
+  return apiFetch<{ senior: Senior; result: HeatRiskResult }>(
+    `/seniors/${seniorId}/heat-risk`
+  );
 }
 
 // Dashboard --------------------------------------------------------------
