@@ -18,6 +18,7 @@ import {
 import type {
   OperatorAction,
   OperatorActionStatus,
+  OperatorActionUpdatePayload,
   Senior,
   SupportContact,
 } from "@/lib/types";
@@ -110,6 +111,25 @@ function formatContactLabel(contact: SupportContact): string {
   return `${contact.name}${relationship ? ` (${relationship})` : ""}`;
 }
 
+function buildOutcomeNote(
+  action: OperatorAction,
+  outcomeNote: string
+): string | undefined {
+  const trimmedOutcome = outcomeNote.trim();
+
+  if (!trimmedOutcome) {
+    return undefined;
+  }
+
+  const existingNote = action.note?.trim();
+
+  if (!existingNote) {
+    return trimmedOutcome;
+  }
+
+  return `${existingNote}\nOutcome: ${trimmedOutcome}`;
+}
+
 export function OperatorActionQueue({ senior }: { senior: Senior }) {
   const router = useRouter();
 
@@ -117,6 +137,8 @@ export function OperatorActionQueue({ senior }: { senior: Senior }) {
   const [contactLookup, setContactLookup] = useState<Map<string, SupportContact>>(
     new Map()
   );
+
+  const [outcomeNotes, setOutcomeNotes] = useState<Record<number, string>>({});
 
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
@@ -158,6 +180,21 @@ export function OperatorActionQueue({ senior }: { senior: Senior }) {
     [actions]
   );
 
+  function setOutcomeNote(actionId: number, value: string) {
+    setOutcomeNotes((current) => ({
+      ...current,
+      [actionId]: value,
+    }));
+  }
+
+  function clearOutcomeNote(actionId: number) {
+    setOutcomeNotes((current) => {
+      const next = { ...current };
+      delete next[actionId];
+      return next;
+    });
+  }
+
   async function handleUpdateStatus(
     action: OperatorAction,
     status: OperatorActionStatus
@@ -166,10 +203,19 @@ export function OperatorActionQueue({ senior }: { senior: Senior }) {
     setError(null);
 
     try {
-      await updateOperatorAction(action.id, {
-        status,
-      });
+      const note = buildOutcomeNote(action, outcomeNotes[action.id] ?? "");
 
+      const payload: OperatorActionUpdatePayload = {
+        status,
+      };
+
+      if (note !== undefined) {
+        payload.note = note;
+      }
+
+      await updateOperatorAction(action.id, payload);
+
+      clearOutcomeNote(action.id);
       await loadActions();
       router.refresh();
     } catch (err) {
@@ -315,7 +361,7 @@ export function OperatorActionQueue({ senior }: { senior: Senior }) {
 
                     {action.note && (
                       <p
-                        className="mt-1"
+                        className="mt-1 whitespace-pre-line"
                         style={{
                           fontSize: 12,
                           color: "#667085",
@@ -339,6 +385,42 @@ export function OperatorActionQueue({ senior }: { senior: Senior }) {
                           : ""}
                     </p>
                   </div>
+                </div>
+
+                <div>
+                  <label
+                    className="block mb-1"
+                    style={{
+                      fontSize: 10.5,
+                      color: "#667085",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    Outcome Note
+                  </label>
+
+                  <textarea
+                    value={outcomeNotes[action.id] ?? ""}
+                    onChange={(event) =>
+                      setOutcomeNote(action.id, event.target.value)
+                    }
+                    rows={2}
+                    placeholder="Example: Ana answered and will check in within 15 minutes."
+                    disabled={isUpdating}
+                    style={{
+                      width: "100%",
+                      border: "1px solid #D8E0EA",
+                      borderRadius: 8,
+                      padding: "8px 9px",
+                      fontSize: 12.5,
+                      color: "#071D3A",
+                      background: "white",
+                      outline: "none",
+                      resize: "vertical",
+                    }}
+                  />
                 </div>
 
                 <div className="flex flex-wrap gap-2">
