@@ -2,6 +2,7 @@
 # Python
 # =========================
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
@@ -25,6 +26,8 @@ ENV/
 .env
 .env.local
 .env.*.local
+frontend/.env.local
+frontend/.env.*.local
 
 # Keep examples committed
 !.env.example
@@ -93,6 +96,7 @@ temp/
 # Node.js
 # =========================
 node_modules/
+**/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -102,7 +106,9 @@ yarn-error.log*
 # Next.js
 # =========================
 .next/
+**/.next/
 out/
+**/out/
 *.tsbuildinfo
 next-env.d.ts
 
@@ -116,9 +122,3 @@ next-env.d.ts
 # Claude Code session data
 # =========================
 .claude/
-
-# =========================
-# Stale workspace directory
-# (VS Code lock — see frontend/ instead)
-# =========================
-apps/

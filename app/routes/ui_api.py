@@ -1,0 +1,492 @@
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, HTTPException
+
+from app.services.profile_service import profile_service
+
+router = APIRouter(prefix="/ui-api", tags=["UI API"])
+
+
+DISPLAY_LOCATIONS = [
+    {
+        "city": "Phoenix",
+        "state": "AZ",
+        "location": "Phoenix, AZ",
+        "lat": 33.45,
+        "lng": -112.07,
+        "heatRisk": "High",
+        "status": "Urgent",
+        "age": 79,
+        "gender": "Female",
+        "recommendedAction": "Dispatch wellness check",
+    },
+    {
+        "city": "San Antonio",
+        "state": "TX",
+        "location": "San Antonio, TX",
+        "lat": 29.42,
+        "lng": -98.49,
+        "heatRisk": "High",
+        "status": "Urgent",
+        "age": 82,
+        "gender": "Male",
+        "recommendedAction": "Call senior",
+    },
+    {
+        "city": "New Orleans",
+        "state": "LA",
+        "location": "New Orleans, LA",
+        "lat": 29.95,
+        "lng": -90.07,
+        "heatRisk": "Moderate",
+        "status": "Watch",
+        "age": 86,
+        "gender": "Female",
+        "recommendedAction": "Call senior",
+    },
+    {
+        "city": "Miami",
+        "state": "FL",
+        "location": "Miami, FL",
+        "lat": 25.77,
+        "lng": -80.19,
+        "heatRisk": "High",
+        "status": "Watch",
+        "age": 74,
+        "gender": "Male",
+        "recommendedAction": "Routine check-in",
+    },
+    {
+        "city": "Atlanta",
+        "state": "GA",
+        "location": "Atlanta, GA",
+        "lat": 33.75,
+        "lng": -84.39,
+        "heatRisk": "Moderate",
+        "status": "Stable",
+        "age": 71,
+        "gender": "Female",
+        "recommendedAction": "Routine check-in",
+    },
+    {
+        "city": "Los Angeles",
+        "state": "CA",
+        "location": "Los Angeles, CA",
+        "lat": 34.05,
+        "lng": -118.24,
+        "heatRisk": "Moderate",
+        "status": "Safe",
+        "age": 77,
+        "gender": "Male",
+        "recommendedAction": "No action needed",
+    },
+    {
+        "city": "Denver",
+        "state": "CO",
+        "location": "Denver, CO",
+        "lat": 39.74,
+        "lng": -104.99,
+        "heatRisk": "Low",
+        "status": "Safe",
+        "age": 83,
+        "gender": "Female",
+        "recommendedAction": "No action needed",
+    },
+    {
+        "city": "Chicago",
+        "state": "IL",
+        "location": "Chicago, IL",
+        "lat": 41.85,
+        "lng": -87.63,
+        "heatRisk": "Low",
+        "status": "Stable",
+        "age": 78,
+        "gender": "Male",
+        "recommendedAction": "No action needed",
+    },
+    {
+        "city": "Seattle",
+        "state": "WA",
+        "location": "Seattle, WA",
+        "lat": 47.61,
+        "lng": -122.33,
+        "heatRisk": "Low",
+        "status": "Safe",
+        "age": 80,
+        "gender": "Female",
+        "recommendedAction": "No action needed",
+    },
+    {
+        "city": "Houston",
+        "state": "TX",
+        "location": "Houston, TX",
+        "lat": 29.76,
+        "lng": -95.37,
+        "heatRisk": "High",
+        "status": "Watch",
+        "age": 75,
+        "gender": "Male",
+        "recommendedAction": "Call senior",
+    },
+]
+
+
+FALLBACK_NAMES = [
+    "Eleanor Jennings",
+    "Robert Martinez",
+    "Lillian Carter",
+    "James Wilson",
+    "Helen Brooks",
+    "George Chen",
+    "Dorothy Hayes",
+    "William Thomas",
+    "Mary Johnson",
+    "Frank Nguyen",
+]
+
+
+def _slugify(value: str) -> str:
+    return (
+        value.strip()
+        .lower()
+        .replace(" ", "-")
+        .replace(".", "")
+        .replace(",", "")
+        .replace("'", "")
+    )
+
+
+def _real_seniors_or_mock() -> list[dict[str, Any]]:
+    real_seniors = profile_service.list_seniors()
+
+    if real_seniors:
+        return real_seniors
+
+    return [
+        {
+            "id": _slugify(name),
+            "name": name,
+            "phone_number": f"(555) 555-01{index:02d}",
+            "preferred_language": "en-US",
+            "notes": "Mock UI profile.",
+            "is_active": True,
+        }
+        for index, name in enumerate(FALLBACK_NAMES, start=1)
+    ]
+
+
+def _display_senior(raw: dict[str, Any], index: int) -> dict[str, Any]:
+    location = DISPLAY_LOCATIONS[index % len(DISPLAY_LOCATIONS)]
+
+    name = raw.get("name") or FALLBACK_NAMES[index % len(FALLBACK_NAMES)]
+    senior_id = raw.get("id") or _slugify(name)
+
+    return {
+        "id": senior_id,
+        "name": name,
+        "age": location["age"],
+        "gender": location["gender"],
+        "location": location["location"],
+        "city": location["city"],
+        "state": location["state"],
+        "lat": location["lat"],
+        "lng": location["lng"],
+        "phone": raw.get("phone_number") or "(555) 555-0198",
+        "address": f"1234 Desert View Dr, {location['location']} 85016",
+        "preferredContactTime": "9:00 AM – 7:00 PM",
+        "medicalNotes": raw.get("notes")
+        or "Monitor hydration, heat exposure, and unusual fatigue.",
+        "emergencyContact": "James Wilson (Son), (602) 555-0198",
+        "heatRisk": location["heatRisk"],
+        "status": location["status"],
+        "latestCheckIn": "Today, 10:18 AM",
+        "assignedCaregiver": "Robert Martinez",
+        "recommendedAction": location["recommendedAction"],
+        "isActive": raw.get("is_active", True),
+    }
+
+
+def _display_seniors() -> list[dict[str, Any]]:
+    return [
+        _display_senior(raw, index)
+        for index, raw in enumerate(_real_seniors_or_mock())
+    ]
+
+
+def _summary(seniors: list[dict[str, Any]]) -> dict[str, int]:
+    need_outreach = len([
+        senior for senior in seniors
+        if senior["status"] in {"Watch", "Urgent"}
+    ])
+
+    critical = len([
+        senior for senior in seniors
+        if senior["status"] == "Urgent"
+    ])
+
+    return {
+        "seniorsMonitored": len(seniors),
+        "supervisedSeniors": len(seniors),
+        "needOutreach": need_outreach,
+        "needOutreachToday": need_outreach,
+        "criticalAlerts": critical,
+        "critical": critical,
+    }
+
+
+def _urgent_outreach(seniors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    urgent = [
+        senior for senior in seniors
+        if senior["status"] in {"Urgent", "Watch"}
+    ]
+
+    return [
+        {
+            "seniorId": senior["id"],
+            "name": senior["name"],
+            "age": senior["age"],
+            "location": senior["location"],
+            "time": ["9:54 AM", "9:47 AM", "9:31 AM"][index % 3],
+            "risk": senior["heatRisk"],
+        }
+        for index, senior in enumerate(urgent[:3])
+    ]
+
+
+def _alerts(seniors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    urgent = _urgent_outreach(seniors)
+
+    return [
+        {
+            "id": f"alert-{index + 1}",
+            "seniorId": item["seniorId"],
+            "seniorName": item["name"],
+            "seniorAge": item["age"],
+            "location": item["location"],
+            "type": [
+                "Extreme heat risk",
+                "Missed check-in",
+                "Wellness check needed",
+            ][index % 3],
+            "severity": "High" if item["risk"] == "High" else item["risk"],
+            "message": "Senior needs outreach due to elevated heat conditions.",
+            "time": item["time"],
+            "acknowledged": False,
+        }
+        for index, item in enumerate(urgent)
+    ]
+
+
+def _schedule(seniors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    selected = seniors[:3]
+
+    return [
+        {
+            "time": ["9:30 AM", "10:30 AM", "1:00 PM"][index],
+            "type": "Wellness Visit" if index == 2 else "Check-in Call",
+            "seniorName": f"{senior['name']}, {senior['age']}",
+            "location": senior["location"],
+        }
+        for index, senior in enumerate(selected)
+    ]
+
+
+def _priorities(seniors: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    prioritized = [
+        senior for senior in seniors
+        if senior["status"] in {"Urgent", "Watch"}
+    ][:3]
+
+    return [
+        {
+            "rank": index + 1,
+            "seniorId": senior["id"],
+            "seniorName": senior["name"],
+            "age": senior["age"],
+            "location": senior["location"],
+            "risk": senior["heatRisk"],
+            "action": senior["recommendedAction"],
+        }
+        for index, senior in enumerate(prioritized)
+    ]
+
+
+def _timeline() -> list[dict[str, Any]]:
+    return [
+        {
+            "id": "timeline-1",
+            "type": "check-in",
+            "title": "Check-in received",
+            "description": "Senior reported they are doing well.",
+            "time": "10:18 AM",
+            "date": "Today",
+            "status": "success",
+        },
+        {
+            "id": "timeline-2",
+            "type": "call-attempt",
+            "title": "Call attempt",
+            "description": "No answer. Left voicemail.",
+            "time": "9:42 AM",
+            "date": "Today",
+            "status": "missed",
+        },
+        {
+            "id": "timeline-3",
+            "type": "check-in",
+            "title": "Check-in received",
+            "description": "Senior reported staying indoors and hydrated.",
+            "time": "6:05 PM",
+            "date": "Yesterday",
+            "status": "success",
+        },
+        {
+            "id": "timeline-4",
+            "type": "note",
+            "title": "Note added",
+            "description": "Caregiver reported grocery delivery completed.",
+            "time": "4:15 PM",
+            "date": "Yesterday",
+            "status": "info",
+        },
+        {
+            "id": "timeline-5",
+            "type": "call-attempt",
+            "title": "Call attempt",
+            "description": "Spoke with senior. They were feeling okay.",
+            "time": "9:11 AM",
+            "date": "May 27",
+            "status": "success",
+        },
+    ]
+
+
+def _heat_check(senior: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": f"live-{senior['id']}",
+        "seniorId": senior["id"],
+        "seniorName": senior["name"],
+        "phone": senior["phone"],
+        "location": senior["location"],
+        "callDuration": "02:47",
+        "status": "active",
+        "transcript": [
+            {
+                "speaker": "Agent",
+                "name": "Agent",
+                "text": "Hi, this is Sarah with the Heat Check team. How are you feeling today?",
+                "time": "10:16 AM",
+            },
+            {
+                "speaker": "Senior",
+                "name": senior["name"],
+                "text": "I'm feeling okay... just a little tired. It's been pretty hot in here.",
+                "time": "10:16 AM",
+            },
+            {
+                "speaker": "Agent",
+                "name": "Agent",
+                "text": "Have you had something to drink today?",
+                "time": "10:17 AM",
+            },
+            {
+                "speaker": "Senior",
+                "name": senior["name"],
+                "text": "Not much. Just some coffee this morning.",
+                "time": "10:17 AM",
+            },
+        ],
+        "riskSummary": {
+            "hydrationConcern": "Elevated",
+            "confusionIndicator": "Low",
+            "currentHeatRisk": senior["heatRisk"],
+            "score": 8.2 if senior["heatRisk"] == "High" else 5.8,
+        },
+        "recommendedAction": senior["recommendedAction"],
+        "weather": "104°F Sunny",
+        "lastCheckIn": senior["latestCheckIn"],
+    }
+
+
+@router.get("/map")
+def get_map_view():
+    seniors = _display_seniors()
+    selected = seniors[0] if seniors else None
+
+    return {
+        "summary": _summary(seniors),
+        "seniors": seniors,
+        "selectedSeniorId": selected["id"] if selected else None,
+        "urgentOutreach": _urgent_outreach(seniors),
+    }
+
+
+@router.get("/dashboard")
+def get_dashboard_view():
+    seniors = _display_seniors()
+
+    return {
+        "summary": _summary(seniors),
+        "priorities": _priorities(seniors),
+        "schedule": _schedule(seniors),
+        "alerts": _alerts(seniors),
+        "trendData": [
+            {"date": "May 23", "value": 1.2},
+            {"date": "May 24", "value": 1.4},
+            {"date": "May 25", "value": 2.0},
+            {"date": "May 26", "value": 2.7},
+            {"date": "May 27", "value": 2.9},
+            {"date": "May 28", "value": 3.5},
+            {"date": "May 29", "value": 4.1},
+        ],
+    }
+
+
+@router.get("/seniors")
+def list_ui_seniors():
+    return {
+        "items": _display_seniors(),
+    }
+
+
+@router.get("/seniors/{senior_id}")
+def get_ui_senior(senior_id: str):
+    seniors = _display_seniors()
+
+    for senior in seniors:
+        if str(senior["id"]) == senior_id or _slugify(senior["name"]) == senior_id:
+            return {
+                "senior": senior,
+                "timeline": _timeline(),
+            }
+
+    raise HTTPException(status_code=404, detail="Senior not found.")
+
+
+@router.get("/alerts")
+def list_ui_alerts():
+    seniors = _display_seniors()
+    return {
+        "items": _alerts(seniors),
+    }
+
+
+@router.get("/heat-checks/{call_id}")
+def get_ui_heat_check(call_id: str):
+    seniors = _display_seniors()
+
+    if call_id.startswith("live-"):
+        senior_key = call_id.removeprefix("live-")
+    else:
+        senior_key = call_id
+
+    for senior in seniors:
+        if str(senior["id"]) == senior_key or _slugify(senior["name"]) == senior_key:
+            return _heat_check(senior)
+
+    if seniors:
+        return _heat_check(seniors[0])
+
+    raise HTTPException(status_code=404, detail="Heat check not found.")

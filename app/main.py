@@ -13,6 +13,7 @@ from app.routes.heat_risk import router as heat_risk_router
 from app.routes.schedules import router as schedules_router
 from app.routes.seniors import router as seniors_router
 from app.routes.twilio_webhooks import router as twilio_router
+from app.routes.ui_api import router as ui_api_router
 from app.security.basic_auth import BasicDashboardAuthMiddleware
 from app.security.twilio_signature import TwilioSignatureValidationMiddleware
 from app.services.checkin_store_service import checkin_store_service
@@ -36,6 +37,9 @@ app = FastAPI(
 app.add_middleware(BasicDashboardAuthMiddleware)
 app.add_middleware(TwilioSignatureValidationMiddleware)
 
+# Legacy static dashboard.
+# The real frontend now lives in /frontend as a Next.js app.
+# This mount is optional so the backend does not crash if app/static is missing.
 static_dir = Path("app/static")
 
 if static_dir.exists():
@@ -52,6 +56,7 @@ app.include_router(heat_risk_router)
 app.include_router(baselines_router)
 app.include_router(dashboard_router)
 app.include_router(twilio_router)
+app.include_router(ui_api_router)
 
 
 @app.get("/")
@@ -60,7 +65,9 @@ def root():
         "service": settings.app_name,
         "environment": settings.app_env,
         "status": "running",
-        "dashboard_ui": "/ui",
+        "dashboard_ui": "/ui" if static_dir.exists() else None,
+        "next_frontend": "http://localhost:3000",
+        "ui_api": "/ui-api",
         "dashboard_auth_enabled": settings.dashboard_auth_enabled,
         "twilio_signature_validation_enabled": settings.twilio_signature_validation_enabled,
     }
