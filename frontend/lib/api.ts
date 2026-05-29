@@ -20,6 +20,7 @@ import type {
   OperatorAction,
   OperatorActionPayload,
   OperatorActionUpdatePayload,
+  OperatorActionStatusFilter,
 } from "./types";
 import {
   MOCK_SENIORS,
@@ -389,4 +390,14 @@ export async function getPendingOperatorActions(): Promise<{
   items: OperatorAction[];
 }> {
   return apiFetch<{ items: OperatorAction[] }>("/operator-actions/pending");
+}
+
+export async function getOperatorActionsByStatus(
+  status: OperatorActionStatusFilter = "pending"
+): Promise<{ items: OperatorAction[] }> {
+  const query = status === "all" ? "" : `?status=${encodeURIComponent(status)}`;
+
+  return apiFetch<{ items: OperatorAction[] }>(
+    `/operator-actions${query}`
+  );
 }

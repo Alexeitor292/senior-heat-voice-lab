@@ -86,15 +86,26 @@ class OperatorActionService:
 
             return [operator_action_to_dict(row, senior) for row in rows]
 
-    def list_pending_actions(
+    def list_actions(
         self,
-        limit: int = 50,
+        status: str | None = None,
+        limit: int = 100,
     ) -> list[dict[str, Any]]:
+        normalized_status = (status or "all").lower().strip()
+
         with SessionLocal() as db:
-            rows = (
+            query = (
                 db.query(OperatorAction, SeniorProfile)
                 .join(SeniorProfile, OperatorAction.senior_id == SeniorProfile.id)
-                .filter(OperatorAction.status.in_(PENDING_ACTION_STATUSES))
+            )
+
+            if normalized_status == "pending":
+                query = query.filter(OperatorAction.status.in_(PENDING_ACTION_STATUSES))
+            elif normalized_status != "all":
+                query = query.filter(OperatorAction.status == normalized_status)
+
+            rows = (
+                query
                 .order_by(OperatorAction.created_at.desc())
                 .limit(limit)
                 .all()
@@ -104,6 +115,12 @@ class OperatorActionService:
                 operator_action_to_dict(action, senior)
                 for action, senior in rows
             ]
+
+    def list_pending_actions(
+        self,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        return self.list_actions(status="pending", limit=limit)
 
     def update_action(
         self,

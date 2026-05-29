@@ -68,6 +68,18 @@ def list_operator_actions(
         "items": result,
     }
 
+@router.get("/operator-actions")
+def list_operator_actions_filtered(
+    status: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=250),
+):
+    return {
+        "items": operator_action_service.list_actions(
+            status=status,
+            limit=limit,
+        ),
+    }
+
 @router.get("/operator-actions/pending")
 def list_pending_operator_actions(
     limit: int = Query(default=50, ge=1, le=100),

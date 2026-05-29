@@ -11,17 +11,31 @@ import {
 } from "lucide-react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import {
-  getPendingOperatorActions,
+  getOperatorActionsByStatus,
   updateOperatorAction,
 } from "@/lib/api";
 import type {
   OperatorAction,
   OperatorActionStatus,
+  OperatorActionStatusFilter,
   OperatorActionUpdatePayload,
 } from "@/lib/types";
 
 const CARD_SHADOW =
   "0 0 0 1px #E8EDF3, 0 1px 3px 0 rgb(7 29 58 / 0.05)";
+
+const ACTIONABLE_STATUSES = new Set(["requested", "in_progress"]);
+
+const FILTERS: Array<{
+  label: string;
+  value: OperatorActionStatusFilter;
+}> = [
+  { label: "Pending", value: "pending" },
+  { label: "Completed", value: "completed" },
+  { label: "Canceled", value: "canceled" },
+  { label: "Failed", value: "failed" },
+  { label: "All", value: "all" },
+];
 
 function formatActionTitle(action: OperatorAction): string {
   const type = (action.action_type || "").toLowerCase();
@@ -102,26 +116,32 @@ function buildOutcomeNote(
   return `${existingNote}\nOutcome: ${trimmedOutcome}`;
 }
 
+function isActionable(action: OperatorAction) {
+  return ACTIONABLE_STATUSES.has((action.status || "").toLowerCase());
+}
+
 export function ActionQueueView() {
   const [actions, setActions] = useState<OperatorAction[]>([]);
+  const [activeFilter, setActiveFilter] =
+    useState<OperatorActionStatusFilter>("pending");
   const [outcomeNotes, setOutcomeNotes] = useState<Record<number, string>>({});
 
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadActions() {
+  async function loadActions(filter = activeFilter) {
     setLoading(true);
     setError(null);
 
     try {
-      const data = await getPendingOperatorActions();
+      const data = await getOperatorActionsByStatus(filter);
       setActions(data.items ?? []);
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to load pending operator actions."
+          : "Failed to load operator actions."
       );
     } finally {
       setLoading(false);
@@ -129,8 +149,9 @@ export function ActionQueueView() {
   }
 
   useEffect(() => {
-    void loadActions();
-  }, []);
+    void loadActions(activeFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilter]);
 
   const counts = useMemo(() => {
     const support = actions.filter(
@@ -184,7 +205,7 @@ export function ActionQueueView() {
       await updateOperatorAction(action.id, payload);
 
       clearOutcomeNote(action.id);
-      await loadActions();
+      await loadActions(activeFilter);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to update action."
@@ -193,6 +214,11 @@ export function ActionQueueView() {
       setUpdatingId(null);
     }
   }
+
+  const emptyText =
+    activeFilter === "pending"
+      ? "No pending operator actions."
+      : `No ${activeFilter} operator actions found.`;
 
   return (
     <div className="p-6 overflow-auto h-full">
@@ -209,7 +235,7 @@ export function ActionQueueView() {
             Action Queue
           </h1>
           <p className="mt-1" style={{ fontSize: 13, color: "#667085" }}>
-            Resolve pending support outreach, wellness checks, and operator work.
+            Resolve pending work and review completed operator actions.
           </p>
         </div>
 
@@ -217,7 +243,7 @@ export function ActionQueueView() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={loadActions}
+          onClick={() => loadActions(activeFilter)}
           disabled={loading}
         >
           <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
@@ -228,7 +254,10 @@ export function ActionQueueView() {
       <div className="flex gap-4 mb-6">
         {[
           {
-            label: "Pending Actions",
+            label:
+              activeFilter === "pending"
+                ? "Pending Actions"
+                : `${formatStatus(activeFilter)} Actions`,
             value: counts.total,
             bg: "#F8FAFC",
             border: "#E2E8F0",
@@ -285,17 +314,43 @@ export function ActionQueueView() {
               style={{ fontSize: 13.5, color: "#071D3A" }}
             >
               <ClipboardList size={15} />
-              Pending Operator Work
+              Operator Actions
             </h2>
             <p
               className="mt-0.5"
               style={{ fontSize: 11.5, color: "#667085" }}
             >
-              Actions remain here until completed, canceled, or failed.
+              Pending work can be resolved. Historical actions are read-only.
             </p>
           </div>
 
-          <span className="label-caps">{actions.length} open</span>
+          <span className="label-caps">{actions.length} shown</span>
+        </div>
+
+        <div
+          className="px-5 py-3 flex flex-wrap gap-2"
+          style={{ borderBottom: "1px solid #F1F5F9", background: "#FAFBFC" }}
+        >
+          {FILTERS.map((filter) => {
+            const active = activeFilter === filter.value;
+
+            return (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setActiveFilter(filter.value)}
+                className="rounded-full px-3 py-1.5 font-semibold transition-interactive"
+                style={{
+                  fontSize: 11.5,
+                  background: active ? "#071D3A" : "white",
+                  color: active ? "white" : "#667085",
+                  border: active ? "1px solid #071D3A" : "1px solid #E2E8F0",
+                }}
+              >
+                {filter.label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="px-5 py-4 space-y-3">
@@ -321,7 +376,7 @@ export function ActionQueueView() {
               style={{ fontSize: 12, color: "#667085" }}
             >
               <RefreshCw size={13} className="animate-spin" />
-              Loading pending actions...
+              Loading operator actions...
             </div>
           )}
 
@@ -336,13 +391,14 @@ export function ActionQueueView() {
                 lineHeight: 1.5,
               }}
             >
-              No pending operator actions.
+              {emptyText}
             </div>
           )}
 
           {!loading &&
             actions.map((action) => {
               const isUpdating = updatingId === action.id;
+              const actionable = isActionable(action);
 
               return (
                 <div
@@ -389,6 +445,12 @@ export function ActionQueueView() {
                         <span style={{ fontSize: 11, color: "#94A8BC" }}>
                           Created {formatDateTime(action.created_at)}
                         </span>
+
+                        {action.updated_at && (
+                          <span style={{ fontSize: 11, color: "#94A8BC" }}>
+                            Updated {formatDateTime(action.updated_at)}
+                          </span>
+                        )}
                       </div>
 
                       <p
@@ -411,7 +473,7 @@ export function ActionQueueView() {
                             lineHeight: 1.5,
                           }}
                         >
-                          <span className="font-medium">Existing note: </span>
+                          <span className="font-medium">Note: </span>
                           {action.note}
                         </p>
                       )}
@@ -427,76 +489,93 @@ export function ActionQueueView() {
                     </div>
                   </div>
 
-                  <div>
-                    <label
-                      className="block mb-1"
-                      style={{
-                        fontSize: 10.5,
-                        color: "#667085",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.06em",
-                      }}
-                    >
-                      Outcome Note
-                    </label>
+                  {actionable ? (
+                    <>
+                      <div>
+                        <label
+                          className="block mb-1"
+                          style={{
+                            fontSize: 10.5,
+                            color: "#667085",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                          }}
+                        >
+                          Outcome Note
+                        </label>
 
-                    <textarea
-                      value={outcomeNotes[action.id] ?? ""}
-                      onChange={(event) =>
-                        setOutcomeNote(action.id, event.target.value)
-                      }
-                      rows={2}
-                      placeholder="Example: Ana answered and will check in within 15 minutes."
-                      disabled={isUpdating}
+                        <textarea
+                          value={outcomeNotes[action.id] ?? ""}
+                          onChange={(event) =>
+                            setOutcomeNote(action.id, event.target.value)
+                          }
+                          rows={2}
+                          placeholder="Example: Ana answered and will check in within 15 minutes."
+                          disabled={isUpdating}
+                          style={{
+                            width: "100%",
+                            border: "1px solid #D8E0EA",
+                            borderRadius: 8,
+                            padding: "8px 9px",
+                            fontSize: 12.5,
+                            color: "#071D3A",
+                            background: "white",
+                            outline: "none",
+                            resize: "vertical",
+                          }}
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <ActionButton
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          disabled={isUpdating}
+                          onClick={() => handleUpdateStatus(action, "completed")}
+                        >
+                          <CheckCircle2 size={12} />
+                          Complete
+                        </ActionButton>
+
+                        <ActionButton
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isUpdating}
+                          onClick={() => handleUpdateStatus(action, "canceled")}
+                        >
+                          <XCircle size={12} />
+                          Cancel
+                        </ActionButton>
+
+                        <ActionButton
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          disabled={isUpdating}
+                          onClick={() => handleUpdateStatus(action, "failed")}
+                        >
+                          <AlertCircle size={12} />
+                          Failed
+                        </ActionButton>
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      className="rounded-lg px-3 py-2"
                       style={{
-                        width: "100%",
-                        border: "1px solid #D8E0EA",
-                        borderRadius: 8,
-                        padding: "8px 9px",
-                        fontSize: 12.5,
-                        color: "#071D3A",
                         background: "white",
-                        outline: "none",
-                        resize: "vertical",
+                        border: "1px solid #E8EDF3",
+                        color: "#667085",
+                        fontSize: 12,
+                        lineHeight: 1.5,
                       }}
-                    />
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    <ActionButton
-                      type="button"
-                      variant="primary"
-                      size="sm"
-                      disabled={isUpdating}
-                      onClick={() => handleUpdateStatus(action, "completed")}
                     >
-                      <CheckCircle2 size={12} />
-                      Complete
-                    </ActionButton>
-
-                    <ActionButton
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={isUpdating}
-                      onClick={() => handleUpdateStatus(action, "canceled")}
-                    >
-                      <XCircle size={12} />
-                      Cancel
-                    </ActionButton>
-
-                    <ActionButton
-                      type="button"
-                      variant="danger"
-                      size="sm"
-                      disabled={isUpdating}
-                      onClick={() => handleUpdateStatus(action, "failed")}
-                    >
-                      <AlertCircle size={12} />
-                      Failed
-                    </ActionButton>
-                  </div>
+                      This action is resolved and shown for history only.
+                    </div>
+                  )}
                 </div>
               );
             })}

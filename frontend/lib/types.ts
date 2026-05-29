@@ -368,3 +368,12 @@ export interface OperatorAction {
   created_at?: string | null;
   updated_at?: string | null;
 }
+
+export type OperatorActionStatusFilter =
+  | "pending"
+  | "requested"
+  | "in_progress"
+  | "completed"
+  | "canceled"
+  | "failed"
+  | "all";
