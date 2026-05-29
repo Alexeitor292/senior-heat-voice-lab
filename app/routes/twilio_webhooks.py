@@ -10,6 +10,7 @@ from app.services.checkin_store_service import checkin_store_service
 from app.services.profile_service import profile_service
 from app.services.risk_analysis_service import risk_analysis_service
 from app.services.voice_baseline_service import voice_baseline_service
+from app.services.baseline_comparison_service import baseline_comparison_service
 
 router = APIRouter(prefix="/twilio", tags=["Twilio Webhooks"])
 
@@ -219,6 +220,7 @@ async def heat_check_speech_response(
     if alert_context is None:
         alert_context = profile_service.get_alert_context_for_call_sid(call_sid)
 
+    senior_id_for_comparison = senior_id
     senior_name = None
     caregiver_phone_number = None
 
@@ -228,6 +230,7 @@ async def heat_check_speech_response(
 
         if senior:
             senior_name = senior.get("name")
+            senior_id_for_comparison = senior.get("id") or senior_id_for_comparison
 
         if caregiver:
             caregiver_phone_number = caregiver.get("phone_number")
@@ -236,6 +239,40 @@ async def heat_check_speech_response(
         transcript=speech_result,
         speech_confidence=confidence,
     )
+
+    baseline_comparison = None
+
+    if senior_id_for_comparison is not None:
+        baseline_comparison = baseline_comparison_service.build_comparison(
+            senior_id=senior_id_for_comparison,
+            current_transcript=speech_result,
+            current_speech_confidence=confidence,
+            senior_call_sid=call_sid,
+        )
+
+        analysis["baseline_comparison"] = baseline_comparison
+
+        # Conservative first version:
+        # Only escalate based on baseline if the comparison is RED and
+        # the LLM otherwise thought everything was GREEN.
+        if (
+            analysis.get("risk_level") == "GREEN"
+            and baseline_comparison.get("baseline_deviation_level") == "RED"
+        ):
+            analysis["risk_level"] = "UNKNOWN"
+            analysis["escalation_needed"] = True
+            analysis["caregiver_summary"] = (
+                "No clear symptom was reported, but this check-in was significantly "
+                "different from the senior's captured baseline."
+            )
+            analysis["recommended_action"] = (
+                "Caregiver should check in because the response was significantly "
+                "different from the captured baseline."
+            )
+            analysis["confidence_notes"] = (
+                analysis.get("confidence_notes", "")
+                + " Baseline comparison triggered UNKNOWN escalation."
+            ).strip()
 
     risk_level = analysis.get("risk_level", "UNKNOWN")
     caregiver_alert_required = alert_service.should_alert_caregiver(risk_level)
@@ -249,6 +286,15 @@ async def heat_check_speech_response(
         risk_analysis=analysis,
         caregiver_alert_required=caregiver_alert_required,
     )
+
+    saved_baseline_comparison = None
+
+    if senior_id_for_comparison is not None and baseline_comparison:
+        saved_baseline_comparison = baseline_comparison_service.save_comparison(
+            senior_id=senior_id_for_comparison,
+            check_in_id=check_in.id,
+            comparison=baseline_comparison,
+        )
 
     alert_result = alert_service.send_caregiver_voice_alert(
         risk_analysis=analysis,
@@ -273,7 +319,11 @@ async def heat_check_speech_response(
 
     print("\nStructured Risk Analysis")
     print("------------------------")
-    print(json.dumps(analysis, indent=2))
+    print(json.dumps(analysis, indent=2))\
+
+    print("\nBaseline Comparison")
+    print("-------------------")
+    print(json.dumps(saved_baseline_comparison, indent=2))
 
     print("\nCaregiver Voice Alert Result")
     print("----------------------------")

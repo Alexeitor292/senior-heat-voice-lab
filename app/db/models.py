@@ -167,6 +167,45 @@ class VoiceBaselineSample(Base):
         onupdate=utc_now,
     )
 
+class VoiceBaselineComparison(Base):
+    __tablename__ = "voice_baseline_comparisons"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    check_in_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    baseline_sample_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+
+    senior_call_sid: Mapped[str | None] = mapped_column(String(80), index=True, nullable=True)
+    baseline_call_sid: Mapped[str | None] = mapped_column(String(80), index=True, nullable=True)
+
+    baseline_transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+    current_transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    baseline_speech_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    current_speech_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    baseline_word_count: Mapped[int] = mapped_column(Integer, default=0)
+    current_word_count: Mapped[int] = mapped_column(Integer, default=0)
+
+    word_count_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence_delta: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    confidence_drop_detected: Mapped[bool] = mapped_column(Boolean, default=False)
+    shorter_response_detected: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    baseline_deviation_level: Mapped[str] = mapped_column(String(20), default="UNKNOWN")
+    reasons_json: Mapped[str] = mapped_column(Text, default="[]")
+    raw_comparison_json: Mapped[str] = mapped_column(Text, default="{}")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
 class HeatRiskObservation(Base):
     __tablename__ = "heat_risk_observations"
 

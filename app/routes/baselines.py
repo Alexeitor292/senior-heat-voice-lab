@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.services.profile_service import profile_service
 from app.services.twilio_service import twilio_service
+from app.services.baseline_comparison_service import baseline_comparison_service
 from app.services.voice_baseline_service import (
     DEFAULT_BASELINE_PROMPT,
     voice_baseline_service,
@@ -84,4 +85,19 @@ def list_baselines_for_senior(senior_id: int):
 def list_recent_baselines(limit: int = 10):
     return {
         "items": voice_baseline_service.list_recent_baselines(limit=limit)
+    }
+
+@router.get("/seniors/{senior_id}/baseline-comparisons")
+def list_baseline_comparisons_for_senior(senior_id: int):
+    senior = profile_service.get_senior(senior_id)
+
+    if not senior:
+        raise HTTPException(
+            status_code=404,
+            detail="Senior profile not found.",
+        )
+
+    return {
+        "senior": senior,
+        "items": baseline_comparison_service.list_comparisons_for_senior(senior_id),
     }
