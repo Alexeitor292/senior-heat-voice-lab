@@ -3,6 +3,20 @@ export type SeniorStatus = "Safe" | "Stable" | "Watch" | "Urgent";
 export type HydrationLevel = "Normal" | "Elevated" | "High";
 export type ConfusionLevel = "Low" | "Elevated" | "High";
 
+export type LivingSituation =
+  | "Lives alone"
+  | "Lives with family"
+  | "Senior community"
+  | "Assisted living"
+  | "Unknown";
+
+export type SupportMode =
+  | "Self-managed"
+  | "Family supported"
+  | "Community supported"
+  | "Facility supported"
+  | "Operator monitored";
+
 export interface Senior {
   id: string | number;
   name: string;
@@ -24,6 +38,11 @@ export interface Senior {
   assignedCaregiver?: string;
   recommendedAction?: string;
   isActive?: boolean;
+  livingSituation?: LivingSituation;
+  supportMode?: SupportMode;
+  supportContactCount?: number;
+  hasSupportContact?: boolean;
+  escalationPlanSummary?: string;
 }
 
 export interface Alert {
@@ -119,6 +138,8 @@ export interface UrgentOutreachItem {
   time?: string;
   risk: RiskLevel;
   status?: SeniorStatus;
+  supportMode?: SupportMode;
+  hasSupportContact?: boolean;
 }
 
 export interface MapViewData {

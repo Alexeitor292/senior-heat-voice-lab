@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { MapPin, Clock } from "lucide-react";
+import { MapPin, Clock, ShieldCheck, UserRoundX } from "lucide-react";
 import type { Senior, UrgentOutreachItem } from "@/lib/types";
 import { statusColor, riskColor } from "@/lib/risk";
 import { RiskBadge } from "@/components/ui/RiskBadge";
@@ -84,8 +84,45 @@ export function SelectedSeniorPanel({ senior, urgentOutreach }: Props) {
               </div>
             </div>
 
+            {/* Support network context */}
+            <div
+              className="mt-4 pt-4 space-y-2 border-t"
+              style={{ borderColor: "#D8E0EA" }}
+            >
+              <div className="flex items-center gap-2 text-xs" style={{ color: "#667085" }}>
+                <ShieldCheck size={12} className="shrink-0" />
+                <span>{senior.supportMode ?? "Support mode unknown"}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs" style={{ color: "#667085" }}>
+                <UserRoundX size={12} className="shrink-0" />
+                <span>{senior.livingSituation ?? "Living situation unknown"}</span>
+              </div>
+              <div
+                className="text-xs leading-relaxed rounded-md px-3 py-2"
+                style={{
+                  background: senior.hasSupportContact === false ? "#FEF2F2" : "#F8FAFC",
+                  color: senior.hasSupportContact === false ? "#B42318" : "#667085",
+                  border:
+                    senior.hasSupportContact === false
+                      ? "1px solid #FECACA"
+                      : "1px solid #D8E0EA",
+                }}
+              >
+                {senior.hasSupportContact === false
+                  ? "No support contact listed. Operator review required for high-risk events."
+                  : `${senior.supportContactCount ?? 0} support contact${
+                      senior.supportContactCount === 1 ? "" : "s"
+                    } on file.`}
+              </div>
+              {senior.escalationPlanSummary && (
+                <p className="text-xs leading-relaxed" style={{ color: "#667085" }}>
+                  {senior.escalationPlanSummary}
+                </p>
+              )}
+            </div>
+
             {senior.recommendedAction && (
-              <ActionButton variant="warning" size="sm" className="w-full justify-center mb-2">
+              <ActionButton variant="warning" size="sm" className="w-full justify-center mb-2 mt-4">
                 {senior.recommendedAction}
               </ActionButton>
             )}
@@ -111,7 +148,7 @@ export function SelectedSeniorPanel({ senior, urgentOutreach }: Props) {
             className="text-xs font-semibold uppercase tracking-wider"
             style={{ color: "#667085" }}
           >
-            Urgent Outreach ({urgentOutreach.length})
+            Needs Response ({urgentOutreach.length})
           </p>
 
           <Link href="/alerts" className="text-xs hover:underline" style={{ color: "#1267D8" }}>

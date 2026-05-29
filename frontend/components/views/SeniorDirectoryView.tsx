@@ -96,7 +96,7 @@ export function SeniorDirectoryView({ seniors }: Props) {
         <table className="w-full">
           <thead>
             <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #D8E0EA" }}>
-              {["Senior", "Location", "Heat Risk", "Status", "Last Check-in", ""].map(
+              {["Senior", "Location", "Heat Risk", "Status", "Support", "Last Check-in", ""].map(
                 (col) => (
                   <th
                     key={col}
@@ -154,6 +154,25 @@ export function SeniorDirectoryView({ seniors }: Props) {
                       {s.status}
                     </span>
                   </div>
+                </td>
+                <td className="px-5 py-3">
+                  {s.supportMode ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs" style={{ color: "#071D3A" }}>
+                        {s.supportMode}
+                      </span>
+                      {s.hasSupportContact === false && (
+                        <span
+                          className="text-[10px] font-semibold rounded-full px-1.5 py-0.5 shrink-0"
+                          style={{ background: "#FEF2F2", color: "#B42318", border: "1px solid #FECACA" }}
+                        >
+                          No contact
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs" style={{ color: "#8FA8C8" }}>—</span>
+                  )}
                 </td>
                 <td className="px-5 py-3 text-sm" style={{ color: "#667085" }}>
                   {s.latestCheckIn ?? "—"}

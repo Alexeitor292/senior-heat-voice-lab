@@ -14,6 +14,8 @@ import {
   CheckCircle,
   XCircle,
   Info,
+  ShieldCheck,
+  Home,
 } from "lucide-react";
 import type { Senior, TimelineItem } from "@/lib/types";
 import { RiskBadge } from "@/components/ui/RiskBadge";
@@ -114,7 +116,7 @@ export function SeniorDetailView({ senior, timeline }: Props) {
               value: <span style={{ color: "#071D3A" }}>{senior.latestCheckIn ?? "—"}</span>,
             },
             {
-              label: "Assigned Caregiver",
+              label: "Assigned Support",
               value: (
                 <span style={{ color: "#071D3A" }}>{senior.assignedCaregiver ?? "—"}</span>
               ),
@@ -253,6 +255,58 @@ export function SeniorDetailView({ senior, timeline }: Props) {
                   </div>
                 </div>
               )}
+
+              {/* Support Network */}
+              {(senior.supportMode || senior.livingSituation) && (
+                <div
+                  className="pt-3 mt-1 space-y-2.5 border-t"
+                  style={{ borderColor: "#F1F5F9" }}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#667085" }}>
+                    Support Network
+                  </p>
+                  {senior.livingSituation && (
+                    <div className="flex items-start gap-3">
+                      <Home size={13} className="shrink-0 mt-0.5" style={{ color: "#667085" }} />
+                      <div>
+                        <p className="text-xs" style={{ color: "#667085" }}>Living Situation</p>
+                        <p className="text-sm font-medium" style={{ color: "#071D3A" }}>
+                          {senior.livingSituation}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {senior.supportMode && (
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck size={13} className="shrink-0 mt-0.5" style={{ color: "#667085" }} />
+                      <div>
+                        <p className="text-xs" style={{ color: "#667085" }}>Support Mode</p>
+                        <p className="text-sm font-medium" style={{ color: "#071D3A" }}>
+                          {senior.supportMode}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <div
+                    className="text-xs leading-relaxed rounded-md px-3 py-2"
+                    style={{
+                      background: senior.hasSupportContact === false ? "#FEF2F2" : "#F8FAFC",
+                      color: senior.hasSupportContact === false ? "#B42318" : "#667085",
+                      border: senior.hasSupportContact === false ? "1px solid #FECACA" : "1px solid #D8E0EA",
+                    }}
+                  >
+                    {senior.hasSupportContact === false
+                      ? "No support contact listed."
+                      : `${senior.supportContactCount ?? 0} support contact${senior.supportContactCount === 1 ? "" : "s"} on file.`}
+                  </div>
+                  {senior.escalationPlanSummary && (
+                    <p className="text-xs leading-relaxed" style={{ color: "#667085" }}>
+                      <span className="font-medium">Escalation plan: </span>
+                      {senior.escalationPlanSummary}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -270,7 +324,7 @@ export function SeniorDetailView({ senior, timeline }: Props) {
             </ActionButton>
             <ActionButton variant="secondary" size="sm" className="w-full justify-center gap-2">
               <MessageSquare size={13} />
-              Message Caregiver
+              Message Support
             </ActionButton>
             <ActionButton variant="warning" size="sm" className="w-full justify-center gap-2">
               <FileText size={13} />
