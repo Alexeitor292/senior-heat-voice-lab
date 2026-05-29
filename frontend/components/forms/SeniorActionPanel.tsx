@@ -6,28 +6,66 @@ import { FileText, MessageSquare, PhoneCall } from "lucide-react";
 import { ActionButton } from "@/components/ui/ActionButton";
 import {
   createOperatorAction,
+  getSupportNetwork,
   startHeatCheck,
 } from "@/lib/api";
-import type { Senior } from "@/lib/types";
+import type { Senior, SupportContact } from "@/lib/types";
 
 const CARD_SHADOW = "0 0 0 1px #E8EDF3, 0 1px 3px 0 rgb(7 29 58 / 0.05)";
+
+function numericContactId(contact: SupportContact | null): number | null {
+  if (!contact) return null;
+
+  const parsed = Number(contact.id);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function selectPrimarySupportContact(
+  contacts: SupportContact[]
+): SupportContact | null {
+  const activeContacts = contacts.filter((contact) => contact.is_active);
+
+  const alertableContacts = activeContacts.filter(
+    (contact) => contact.can_receive_alerts
+  );
+
+  const candidates =
+    alertableContacts.length > 0 ? alertableContacts : activeContacts;
+
+  if (candidates.length === 0) return null;
+
+  return [...candidates].sort((a, b) => a.priority - b.priority)[0];
+}
 
 export function SeniorActionPanel({ senior }: { senior: Senior }) {
   const router = useRouter();
 
   const [startingCall, setStartingCall] = useState(false);
+  const [messagingSupport, setMessagingSupport] = useState(false);
   const [dispatchingWellness, setDispatchingWellness] = useState(false);
-  const [note, setNote] = useState("");
+
+  const [actionNote, setActionNote] = useState("");
 
   const [success, setSuccess] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleCallSenior() {
-    setStartingCall(true);
+  function resetFeedback() {
     setSuccess(null);
     setDetail(null);
     setError(null);
+  }
+
+  function defaultReason() {
+    return (
+      senior.recommendedAction ||
+      `${senior.status} status with ${senior.heatRisk} heat risk`
+    );
+  }
+
+  async function handleCallSenior() {
+    setStartingCall(true);
+    resetFeedback();
 
     try {
       const result = await startHeatCheck(senior.id);
@@ -49,29 +87,62 @@ export function SeniorActionPanel({ senior }: { senior: Senior }) {
     }
   }
 
-  async function handleDispatchWellnessCheck() {
-    setDispatchingWellness(true);
-    setSuccess(null);
-    setDetail(null);
-    setError(null);
+  async function handleMessageSupport() {
+    setMessagingSupport(true);
+    resetFeedback();
 
     try {
-      const reason =
-        senior.recommendedAction ||
-        `${senior.status} status with ${senior.heatRisk} heat risk`;
+      const network = await getSupportNetwork(senior.id);
+      const primaryContact = selectPrimarySupportContact(
+        network.support_contacts ?? []
+      );
 
+      const targetContactId = numericContactId(primaryContact);
+
+      const result = await createOperatorAction(senior.id, {
+        action_type: "message_support",
+        status: "requested",
+        reason: defaultReason(),
+        note: actionNote.trim() || null,
+        target_contact_id: targetContactId,
+        created_by: "operator",
+      });
+
+      setSuccess("Support outreach requested.");
+      setDetail(
+        primaryContact
+          ? `Target: ${primaryContact.name} (${primaryContact.relationship || primaryContact.contact_type}) • Action ID: ${result.action.id}`
+          : `No active support contact found. Action ID: ${result.action.id}`
+      );
+
+      setActionNote("");
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to request support outreach."
+      );
+    } finally {
+      setMessagingSupport(false);
+    }
+  }
+
+  async function handleDispatchWellnessCheck() {
+    setDispatchingWellness(true);
+    resetFeedback();
+
+    try {
       const result = await createOperatorAction(senior.id, {
         action_type: "wellness_check",
         status: "requested",
-        reason,
-        note: note.trim() || null,
+        reason: defaultReason(),
+        note: actionNote.trim() || null,
         created_by: "operator",
       });
 
       setSuccess("Wellness check requested.");
       setDetail(`Action ID: ${result.action.id}`);
-      setNote("");
 
+      setActionNote("");
       router.refresh();
     } catch (err) {
       setError(
@@ -81,6 +152,8 @@ export function SeniorActionPanel({ senior }: { senior: Senior }) {
       setDispatchingWellness(false);
     }
   }
+
+  const busy = startingCall || messagingSupport || dispatchingWellness;
 
   return (
     <div
@@ -135,7 +208,7 @@ export function SeniorActionPanel({ senior }: { senior: Senior }) {
         variant="secondary"
         size="sm"
         className="w-full justify-center gap-2"
-        disabled={startingCall}
+        disabled={busy}
         onClick={handleCallSenior}
       >
         <PhoneCall size={13} />
@@ -147,19 +220,19 @@ export function SeniorActionPanel({ senior }: { senior: Senior }) {
         variant="secondary"
         size="sm"
         className="w-full justify-center gap-2"
-        disabled
-        title="Support messaging will be wired in the next milestone."
+        disabled={busy}
+        onClick={handleMessageSupport}
       >
         <MessageSquare size={13} />
-        Message Support
+        {messagingSupport ? "Requesting..." : "Message Support"}
       </ActionButton>
 
       <div className="space-y-2">
         <textarea
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
+          value={actionNote}
+          onChange={(event) => setActionNote(event.target.value)}
           rows={3}
-          placeholder="Optional note for wellness check..."
+          placeholder="Optional note for support outreach or wellness check..."
           style={{
             width: "100%",
             border: "1px solid #D8E0EA",
@@ -178,7 +251,7 @@ export function SeniorActionPanel({ senior }: { senior: Senior }) {
           variant="warning"
           size="sm"
           className="w-full justify-center gap-2"
-          disabled={dispatchingWellness}
+          disabled={busy}
           onClick={handleDispatchWellnessCheck}
         >
           <FileText size={13} />
