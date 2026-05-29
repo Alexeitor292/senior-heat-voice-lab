@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./data/senior_heat_voice_lab.db"
 
+    scheduler_poll_seconds: int = 60
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
