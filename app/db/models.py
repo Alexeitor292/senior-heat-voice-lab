@@ -514,6 +514,128 @@ class CheckIn(Base):
         onupdate=utc_now,
     )
 
+class TranscriptTurn(Base):
+    __tablename__ = "transcript_turns"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    check_in_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("check_ins.id"),
+        index=True,
+        nullable=True,
+    )
+
+    call_session_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("check_in_call_sessions.id"),
+        index=True,
+        nullable=True,
+    )
+
+    senior_call_sid: Mapped[str | None] = mapped_column(String(80), index=True, nullable=True)
+
+    turn_index: Mapped[int] = mapped_column(Integer, default=0)
+    speaker: Mapped[str] = mapped_column(String(40), default="senior")
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+
+    started_at_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ended_at_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class ConversationInsight(Base):
+    __tablename__ = "conversation_insights"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    check_in_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("check_ins.id"),
+        index=True,
+        nullable=True,
+    )
+
+    call_session_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("check_in_call_sessions.id"),
+        index=True,
+        nullable=True,
+    )
+
+    senior_call_sid: Mapped[str | None] = mapped_column(String(80), index=True, nullable=True)
+
+    safety_risk_level: Mapped[str] = mapped_column(String(30), index=True, default="unknown")
+    safety_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    safety_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    safety_escalation_needed: Mapped[bool] = mapped_column(Boolean, default=False)
+    safety_reason_codes_json: Mapped[str] = mapped_column(Text, default="[]")
+
+    relationship_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    mood_label: Mapped[str] = mapped_column(String(40), default="unknown")
+    loneliness_signal: Mapped[str] = mapped_column(String(40), default="unknown")
+    topics_discussed_json: Mapped[str] = mapped_column(Text, default="[]")
+    follow_up_suggestions_json: Mapped[str] = mapped_column(Text, default="[]")
+
+    recommended_actions_json: Mapped[str] = mapped_column(Text, default="[]")
+    memory_candidates_json: Mapped[str] = mapped_column(Text, default="[]")
+
+    analyzer: Mapped[str] = mapped_column(String(80), default="rules_v0")
+    raw_analysis_json: Mapped[str] = mapped_column(Text, default="{}")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+
+class SeniorMemoryCandidate(Base):
+    __tablename__ = "senior_memory_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    check_in_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("check_ins.id"),
+        index=True,
+        nullable=True,
+    )
+
+    insight_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("conversation_insights.id"),
+        index=True,
+        nullable=True,
+    )
+
+    memory_type: Mapped[str] = mapped_column(String(60), default="general")
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    status: Mapped[str] = mapped_column(String(40), default="candidate")
+    source: Mapped[str] = mapped_column(String(80), default="conversation_analysis")
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
 
 class CaregiverAlert(Base):
     __tablename__ = "caregiver_alerts"
