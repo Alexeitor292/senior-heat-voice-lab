@@ -1,0 +1,102 @@
+export type RiskLevel = "Low" | "Moderate" | "High" | "Extreme" | "Unknown";
+export type SeniorStatus = "Safe" | "Stable" | "Watch" | "Urgent";
+export type HydrationLevel = "Normal" | "Elevated" | "High";
+export type ConfusionLevel = "Low" | "Elevated" | "High";
+
+export interface Senior {
+  id: string | number;
+  name: string;
+  age: number;
+  gender?: string;
+  location: string;
+  city: string;
+  state: string;
+  lat: number;
+  lng: number;
+  phone?: string;
+  address?: string;
+  preferredContactTime?: string;
+  medicalNotes?: string;
+  emergencyContact?: string;
+  heatRisk: RiskLevel;
+  status: SeniorStatus;
+  latestCheckIn?: string;
+  assignedCaregiver?: string;
+  recommendedAction?: string;
+  isActive?: boolean;
+}
+
+export interface Alert {
+  id: string | number;
+  seniorId: string | number;
+  seniorName: string;
+  seniorAge?: number;
+  location?: string;
+  type: string;
+  severity: RiskLevel;
+  message: string;
+  time: string;
+  acknowledged: boolean;
+}
+
+export interface TranscriptLine {
+  speaker: "Agent" | "Senior";
+  name: string;
+  text: string;
+  time: string;
+}
+
+export interface RiskSummary {
+  hydrationConcern: HydrationLevel;
+  confusionIndicator: ConfusionLevel;
+  currentHeatRisk: RiskLevel;
+  score: number;
+}
+
+export interface HeatCheck {
+  id: string;
+  seniorId: string | number;
+  seniorName: string;
+  phone: string;
+  location: string;
+  callDuration: string;
+  status: "active" | "completed" | "missed";
+  transcript: TranscriptLine[];
+  riskSummary: RiskSummary;
+  recommendedAction?: string;
+  weather?: string;
+  lastCheckIn?: string;
+}
+
+export interface ScheduleItem {
+  time: string;
+  type: "Check-in Call" | "Wellness Visit" | "Follow-up";
+  seniorName: string;
+  location: string;
+}
+
+export interface TimelineItem {
+  id: string;
+  type: "check-in" | "call-attempt" | "note" | "alert";
+  title: string;
+  description?: string;
+  time: string;
+  date: string;
+  status?: "success" | "missed" | "info";
+}
+
+export interface DashboardSummary {
+  seniorsMonitored: number;
+  needOutreach: number;
+  criticalAlerts: number;
+}
+
+export interface PriorityItem {
+  rank: number;
+  seniorId: string | number;
+  seniorName: string;
+  age: number;
+  location: string;
+  risk: RiskLevel;
+  action: string;
+}
