@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     openai_realtime_voice: str = "marin"
 
     database_url: str = "sqlite:///./data/senior_heat_voice_lab.db"
+    auto_create_db_tables: bool = False
 
     scheduler_poll_seconds: int = 60
 

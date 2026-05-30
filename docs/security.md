@@ -1,0 +1,179 @@
+@'
+# Security Notes
+
+This project handles sensitive senior-care data, including:
+
+- Senior names
+- Phone numbers
+- Locations
+- Support contacts
+- Call SIDs
+- Check-in transcripts
+- Conversation insights
+- Risk summaries
+- Operator actions
+- Caregiver alert data
+
+Do not treat this app as production-ready until the items in this document are addressed.
+
+## Current Development Protection
+
+The backend uses dashboard Basic Auth for operational routes when:
+
+    DASHBOARD_AUTH_ENABLED=true
+
+Protected route prefixes include:
+
+    /ui
+    /dashboard
+    /ui-api
+    /seniors
+    /calls
+    /operator-actions
+    /check-ins
+    /schedules
+    /scheduler
+    /operational-status
+    /ai-call-sessions
+    /debug
+
+Public route prefixes include:
+
+    /
+    /health
+    /docs
+    /redoc
+    /openapi.json
+    /twilio
+
+## Twilio Routes
+
+Twilio routes must remain reachable by Twilio:
+
+    /twilio/*
+
+These are not protected by dashboard Basic Auth. They are protected by Twilio signature validation when:
+
+    TWILIO_SIGNATURE_VALIDATION_ENABLED=true
+
+Do not put Basic Auth in front of Twilio webhook routes unless Twilio is explicitly configured to send those credentials.
+
+## Frontend Proxy
+
+The Next.js frontend calls the backend through:
+
+    /api/backend/*
+
+The proxy injects backend credentials server-side. These credentials must never be exposed with `NEXT_PUBLIC_*` environment variable names.
+
+Correct:
+
+    API_BASIC_AUTH_USERNAME=admin
+    API_BASIC_AUTH_PASSWORD=change-me-local-dev
+
+Incorrect:
+
+    NEXT_PUBLIC_API_BASIC_AUTH_USERNAME=admin
+    NEXT_PUBLIC_API_BASIC_AUTH_PASSWORD=change-me-local-dev
+
+Anything prefixed with `NEXT_PUBLIC_` can be exposed to the browser.
+
+## Local Secrets
+
+Never commit:
+
+    .env
+    .env.local
+    .env.*.local
+    frontend/.env.local
+    frontend/.env.*.local
+    data/*.db
+    data/*.sqlite
+    data/*.sqlite3
+
+Use `.env.example` files for placeholders only.
+
+## Production Recommendation
+
+Basic Auth is acceptable for local development and early hardening, but it is not the final production auth model.
+
+Production should eventually use:
+
+    Browser user session
+      -> Next.js validates logged-in caregiver/operator
+      -> Next.js calls FastAPI with internal service token
+      -> FastAPI validates internal token or user JWT
+
+Recommended future options:
+
+- Auth.js / NextAuth
+- Clerk
+- Supabase Auth
+- Firebase Auth
+- Custom session cookies
+- Backend Bearer token
+- Internal API key
+- Private backend network
+
+## Scheduler Routes
+
+Scheduler routes are sensitive:
+
+    /scheduler/run-due-checks
+    /scheduler/run-heat-risk-checks
+
+These can trigger outbound calls. They must not be public in production. They should require authentication, an internal token, or private network access.
+
+## Mock/Fallback Data
+
+Mock fallback must be explicit.
+
+Default:
+
+    NEXT_PUBLIC_ALLOW_MOCK_FALLBACK=false
+
+Demo-only:
+
+    NEXT_PUBLIC_ALLOW_MOCK_FALLBACK=true
+
+Production must not silently show fake senior data when backend calls fail.
+
+## Safe Logging
+
+Safe logging controls are configured with:
+
+    LOG_PII=false
+    LOG_TRANSCRIPTS=false
+    LOG_RAW_ANALYSIS=false
+
+These should remain false by default, especially in production.
+
+## OpenAI and Twilio Secrets
+
+Never commit:
+
+    OPENAI_API_KEY=
+    TWILIO_ACCOUNT_SID=
+    TWILIO_AUTH_TOKEN=
+    TWILIO_PHONE_NUMBER=
+    ADMIN_PASSWORD=
+    API_BASIC_AUTH_PASSWORD=
+
+Local development should use `.env` and `frontend/.env.local`.
+
+Production should use the deployment platform secret manager.
+
+## Current Production Gaps
+
+Before production, address:
+
+- Replace Basic Auth with real user auth.
+- Require logged-in user session before proxying `/api/backend/*`.
+- Replace backend Basic Auth with an internal API key, service token, or JWT.
+- Add database migrations.
+- Move from SQLite to a managed database if deploying multi-user.
+- Audit every route that returns transcripts, phone numbers, call SIDs, or support contacts.
+- Ensure scheduler endpoints are private or token-protected.
+- Keep Twilio signature validation enabled.
+- Keep safe logging defaults disabled for PII/transcripts/raw analysis.
+'@ | Set-Content -Encoding utf8 docs/security.md

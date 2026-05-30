@@ -1,21 +1,21 @@
 # Senior Heat Voice Lab
 
-This is the Step 1 prototype for the Senior Heat Safety AI project.
+Senior Heat Voice Lab is a full-stack senior heat-safety monitoring prototype.
 
-The goal of this version is simple:
+It includes:
+- FastAPI backend
+- SQLite local database for development
+- Next.js frontend
+- Twilio voice check-ins
+- Twilio Media Streams + OpenAI Realtime AI check-ins
+- HeatRisk settings and triggered calls
+- Support network and escalation plans
+- Operator action queue
+- Conversation insight and check-in review flows
 
-> Make a real phone call from our FastAPI backend using Twilio.
+## Main folders
 
-No AI yet.  
-No Pipecat yet.  
-No speech-to-text yet.  
-No database yet.
-
----
-
-## What this version does
-
-When you call:
-
-```bash
-POST /calls/start-test-call
+- `app/` — FastAPI backend
+- `frontend/` — Next.js frontend
+- `data/` — local SQLite database
+- `tests/` — backend tests
