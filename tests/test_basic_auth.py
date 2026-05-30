@@ -44,6 +44,10 @@ def _build_test_app() -> FastAPI:
     def seniors():
         return {"ok": True}
 
+    @app.get("/ready")
+    def ready():
+        return {"ok": True}
+
     @app.get("/operator-actions/pending")
     def operator_actions_pending():
         return {"ok": True}
@@ -100,6 +104,7 @@ def test_operational_paths_are_protected():
     assert _is_protected_path("/seniors")
     assert _is_protected_path("/seniors/1")
     assert _is_protected_path("/calls")
+    assert _is_protected_path("/ready")
     assert _is_protected_path("/operator-actions")
     assert _is_protected_path("/operator-actions/pending")
     assert _is_protected_path("/check-ins/1/review")
@@ -208,6 +213,7 @@ def test_protected_routes_require_basic_auth(monkeypatch):
         ("PATCH", "/support-contacts/1"),
         ("DELETE", "/support-contacts/1"),
         ("GET", "/heat-settings"),
+        ("GET", "/ready"),
         ("GET", "/scheduler/run-due-checks"),
         ("GET", "/debug/check-ins"),
     ]
@@ -249,6 +255,7 @@ def test_protected_routes_accept_valid_basic_auth(monkeypatch):
         ("PATCH", "/support-contacts/1"),
         ("DELETE", "/support-contacts/1"),
         ("GET", "/heat-settings"),
+        ("GET", "/ready"),
         ("GET", "/scheduler/run-due-checks"),
         ("GET", "/debug/check-ins"),
     ]

@@ -75,3 +75,4 @@ def test_sensitive_standalone_routes_are_auth_protected():
     assert _is_protected_path("/check-ins/1/review")
     assert _is_protected_path("/scheduler/run-due-checks")
     assert _is_protected_path("/scheduler/run-heat-risk-checks")
+    assert _is_protected_path("/ready")

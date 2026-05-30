@@ -42,6 +42,24 @@ Health check:
 
     curl.exe -i http://localhost:8000/health
 
+Readiness check:
+
+    curl.exe -i -u admin:change-me-local-dev http://localhost:8000/ready
+
+Expected after migrations are applied:
+
+    200 OK
+
+Without auth, `/ready` returns:
+
+    401 Unauthorized
+
+If migrations have not been applied or the database is not at the current Alembic head, `/ready` returns:
+
+    503 Service Unavailable
+
+`/health` is public and minimal. `/ready` is protected because it exposes database and migration readiness details.
+
 Protected API check:
 
     curl.exe -i http://localhost:8000/ui-api/map

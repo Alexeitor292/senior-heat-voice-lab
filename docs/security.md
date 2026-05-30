@@ -252,6 +252,25 @@ Production startup will fail if:
 
 This is intentional. Production should fail closed instead of booting with unsafe defaults.
 
+## Health and Readiness Endpoints
+
+`/health` is public and intentionally minimal:
+
+    {"status":"ok"}
+
+It should not expose configuration, database state, provider status, versions, secrets, or dependency details.
+
+`/ready` is protected by dashboard/API authentication because it exposes operational readiness details, including database connectivity and migration state.
+
+Expected behavior:
+
+    GET /health -> 200 OK without auth
+    GET /ready  -> 401 Unauthorized without auth
+    GET /ready  -> 200 OK with auth if ready
+    GET /ready  -> 503 Service Unavailable with auth if not ready
+
+In production, `/ready` should ideally only be reachable by an internal load balancer, deployment platform health checker, or authenticated operator.
+
 ## Current Production Gaps
 
 Before production, address:

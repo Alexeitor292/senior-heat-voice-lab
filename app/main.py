@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -28,6 +28,7 @@ from app.security.basic_auth import BasicDashboardAuthMiddleware
 from app.security.twilio_signature import TwilioSignatureValidationMiddleware
 from app.services.checkin_store_service import checkin_store_service
 from app.services.profile_service import profile_service
+from app.services.readiness_service import get_readiness
 
 
 @asynccontextmanager
@@ -106,6 +107,14 @@ def health_check():
         "status": "ok",
     }
 
+@app.get("/ready")
+def readiness_check(response: Response):
+    readiness = get_readiness()
+
+    if not readiness["ready"]:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+    return readiness
 
 @app.get("/debug/check-ins")
 def get_recent_check_ins(limit: int = 10):

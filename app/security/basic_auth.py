@@ -31,6 +31,7 @@ PROTECTED_PATH_PREFIXES = (
     "/ai-call-sessions",
     "/support-contacts",
     "/heat-settings",
+    "/ready",
     "/debug",
 )
 
