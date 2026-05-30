@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
 
+    openai_realtime_enabled: bool = False
+    openai_realtime_model: str = "gpt-realtime-2"
+    openai_realtime_voice: str = "marin"
+
     database_url: str = "sqlite:///./data/senior_heat_voice_lab.db"
 
     scheduler_poll_seconds: int = 60

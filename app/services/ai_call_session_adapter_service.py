@@ -233,6 +233,10 @@ class AICallSessionAdapterService:
         session_id: int,
         payload: AICallSessionCompleteRequest,
     ) -> dict[str, Any] | None:
+        transcript_turns: list[TranscriptTurnInput] = []
+        session_senior_id: int | None = None
+        session_senior_call_sid: str | None = None
+
         with SessionLocal() as db:
             session = db.get(CheckInCallSession, session_id)
 
@@ -249,6 +253,9 @@ class AICallSessionAdapterService:
 
             db.commit()
             db.refresh(session)
+
+            session_senior_id = session.senior_id
+            session_senior_call_sid = session.senior_call_sid
 
             if payload.transcript_turns is not None:
                 transcript_turns = [
@@ -273,8 +280,19 @@ class AICallSessionAdapterService:
         if not transcript_turns:
             return None
 
+        has_senior_turn = any(
+            (turn.speaker or "").lower().strip() in {"senior", "user", "caller"}
+            for turn in transcript_turns
+        )
+
+        if not has_senior_turn:
+            return None
+
+        if session_senior_id is None:
+            return None
+
         analysis_request = ConversationAnalysisRequest(
-            senior_call_sid=payload.senior_call_sid or session.senior_call_sid,
+            senior_call_sid=payload.senior_call_sid or session_senior_call_sid,
             call_session_id=session_id,
             heat_risk_value=payload.heat_risk_value,
             heat_risk_label=payload.heat_risk_label,
@@ -283,7 +301,7 @@ class AICallSessionAdapterService:
         )
 
         result = ai_conversation_analysis_service.analyze_and_store(
-            senior_id=session.senior_id,
+            senior_id=session_senior_id,
             request=analysis_request,
         )
 
@@ -305,7 +323,7 @@ class AICallSessionAdapterService:
                 raw_analysis["_call_adapter"] = {
                     "provider": payload.provider,
                     "provider_session_id": payload.provider_session_id,
-                    "senior_call_sid": payload.senior_call_sid or session.senior_call_sid,
+                    "senior_call_sid": payload.senior_call_sid or session_senior_call_sid,
                     "call_session_id": session_id,
                     "call_status": payload.call_status,
                     "duration_seconds": payload.duration_seconds,
@@ -326,8 +344,8 @@ class AICallSessionAdapterService:
         return {
             "message": "AI call session completed and analyzed.",
             "provider": payload.provider,
-            "senior_id": session.senior_id,
-            "senior_call_sid": payload.senior_call_sid or session.senior_call_sid,
+            "senior_id": session_senior_id,
+            "senior_call_sid": payload.senior_call_sid or session_senior_call_sid,
             "call_session_id": session_id,
             "check_in_id": result["check_in_id"],
             "insight_id": result["insight_id"],

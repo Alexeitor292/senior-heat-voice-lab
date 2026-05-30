@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import json
 from urllib.parse import urlparse
-from xml.sax.saxutils import escape, quoteattr
+from xml.sax.saxutils import quoteattr
 
 from fastapi import APIRouter, Query, Response, WebSocket, WebSocketDisconnect
 
 from app.config import settings
 from app.db.database import SessionLocal
 from app.db.models import CheckInCallSession
-from app.schemas.ai_call_sessions import AICallSessionStartRequest
+from app.schemas.ai_call_sessions import (
+    AICallSessionCompleteRequest,
+    AICallSessionStartRequest,
+)
 from app.services.ai_call_session_adapter_service import ai_call_session_adapter_service
+from app.services.openai_realtime_twilio_bridge import OpenAIRealtimeTwilioBridge
 from app.utils.safe_logging import safe_log_event
 
 
@@ -18,13 +22,6 @@ router = APIRouter(prefix="/twilio", tags=["Twilio AI Stream"])
 
 
 def _public_ws_url(path: str) -> str:
-    """
-    Convert PUBLIC_BASE_URL into a websocket URL Twilio can connect to.
-
-    Example:
-    https://abc.ngrok-free.app -> wss://abc.ngrok-free.app/twilio/media/ai-check-in
-    http://localhost:8000  -> ws://localhost:8000/twilio/media/ai-check-in
-    """
     parsed = urlparse(settings.public_base_url.rstrip("/"))
 
     if parsed.scheme == "https":
@@ -42,8 +39,6 @@ def _ai_stream_twiml(
     senior_id: int,
     stream_url: str,
 ) -> str:
-    # Generate TwiML manually so we do not depend on Twilio SDK helper behavior
-    # for custom <Parameter> elements.
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say>Hello. This is your AI wellness companion check-in. One moment while I connect you.</Say>
@@ -77,16 +72,70 @@ def _update_call_session_status(
         db.commit()
 
 
+def _get_session_senior_name(session_id: int) -> str | None:
+    with SessionLocal() as db:
+        session = db.get(CheckInCallSession, session_id)
+
+        if not session:
+            return None
+
+        return session.senior_name
+
+
+def _complete_stream_session(
+    *,
+    session_id: int,
+    call_sid: str | None,
+    stream_sid: str | None,
+    media_event_count: int,
+) -> None:
+    result = ai_call_session_adapter_service.complete_existing_session(
+        session_id=session_id,
+        payload=AICallSessionCompleteRequest(
+            provider="twilio_openai_realtime",
+            provider_session_id=stream_sid,
+            senior_call_sid=call_sid,
+            call_status="completed",
+            duration_seconds=None,
+            create_operator_actions=True,
+            raw_provider_payload={
+                "stream_sid": stream_sid,
+                "media_event_count": media_event_count,
+            },
+        ),
+    )
+
+    if result:
+        safe_log_event(
+            "AI Media Stream Completed And Analyzed",
+            {
+                "session_id": session_id,
+                "check_in_id": result.get("check_in_id"),
+                "insight_id": result.get("insight_id"),
+                "review_url": result.get("check_in_review_url"),
+            },
+        )
+        return
+
+    _update_call_session_status(
+        session_id=session_id,
+        status="stream_stopped_no_transcript",
+    )
+
+    safe_log_event(
+        "AI Media Stream Stopped Without Senior Transcript",
+        {
+            "session_id": session_id,
+            "call_sid": call_sid,
+            "stream_sid": stream_sid,
+        },
+    )
+
+
 @router.post("/voice/ai-check-in")
 async def ai_check_in_voice(
     senior_id: int = Query(...),
 ):
-    """
-    Twilio voice webhook for the real AI check-in path.
-
-    This returns TwiML that connects the phone call to our backend WebSocket.
-    The WebSocket is where Pipecat/OpenAI Realtime will plug in next.
-    """
     stream_url = _public_ws_url("/twilio/media/ai-check-in")
 
     safe_log_event(
@@ -94,6 +143,7 @@ async def ai_check_in_voice(
         {
             "senior_id": senior_id,
             "stream_url": stream_url,
+            "openai_realtime_enabled": settings.openai_realtime_enabled,
         },
     )
 
@@ -108,21 +158,6 @@ async def ai_check_in_voice(
 
 @router.websocket("/media/ai-check-in")
 async def ai_check_in_media_stream(websocket: WebSocket):
-    """
-    Twilio Media Stream WebSocket endpoint.
-
-    Current milestone:
-    - Accept Twilio's bidirectional stream.
-    - Create our AI call session when Twilio sends the start event.
-    - Track media events so we know audio is reaching the backend.
-    - Mark the session ended when Twilio sends stop/disconnect.
-
-    Next milestone:
-    - Pipe inbound audio frames into Pipecat/OpenAI Realtime.
-    - Send generated audio frames back to Twilio.
-    - Append transcript turns live.
-    - Complete/analyze the session at call end.
-    """
     await websocket.accept()
 
     session_id: int | None = None
@@ -130,11 +165,13 @@ async def ai_check_in_media_stream(websocket: WebSocket):
     call_sid: str | None = None
     stream_sid: str | None = None
     media_event_count = 0
+    realtime_bridge: OpenAIRealtimeTwilioBridge | None = None
 
     safe_log_event(
         "AI Media Stream Connected",
         {
             "client": str(websocket.client),
+            "openai_realtime_enabled": settings.openai_realtime_enabled,
         },
     )
 
@@ -217,6 +254,7 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                     return
 
                 session_id = result["session"]["id"]
+                senior_name = _get_session_senior_name(session_id)
 
                 safe_log_event(
                     "AI Media Stream Session Started",
@@ -225,13 +263,29 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                         "senior_id": senior_id,
                         "call_sid": call_sid,
                         "stream_sid": stream_sid,
+                        "reused_existing_session": result.get("reused_existing_session"),
                     },
                 )
+
+                if stream_sid:
+                    realtime_bridge = OpenAIRealtimeTwilioBridge(
+                        twilio_websocket=websocket,
+                        session_id=session_id,
+                        senior_id=senior_id,
+                        stream_sid=stream_sid,
+                        senior_name=senior_name,
+                    )
+                    await realtime_bridge.start()
 
             elif event == "media":
                 media_event_count += 1
 
-                # Do not log payloads. They contain raw audio.
+                media = message.get("media") or {}
+                payload = media.get("payload")
+
+                if realtime_bridge:
+                    await realtime_bridge.send_twilio_audio_payload(payload)
+
                 if media_event_count in {1, 10, 50, 100}:
                     safe_log_event(
                         "AI Media Stream Audio Received",
@@ -241,6 +295,7 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                             "call_sid": call_sid,
                             "stream_sid": stream_sid,
                             "media_event_count": media_event_count,
+                            "forwarding_to_openai": realtime_bridge is not None,
                         },
                     )
 
@@ -268,10 +323,15 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                     },
                 )
 
+                if realtime_bridge:
+                    await realtime_bridge.close()
+
                 if session_id is not None:
-                    _update_call_session_status(
+                    _complete_stream_session(
                         session_id=session_id,
-                        status="stream_stopped_no_analysis",
+                        call_sid=call_sid,
+                        stream_sid=stream_sid,
+                        media_event_count=media_event_count,
                     )
 
                 break
@@ -297,8 +357,11 @@ async def ai_check_in_media_stream(websocket: WebSocket):
             },
         )
 
+        if realtime_bridge:
+            await realtime_bridge.close()
+
         if session_id is not None:
             _update_call_session_status(
                 session_id=session_id,
-                status="stream_disconnected_no_analysis",
+                status="stream_disconnected",
             )
