@@ -3,6 +3,7 @@ import json
 import time
 
 import websockets
+from websockets.exceptions import ConnectionClosed
 
 
 async def receiver(ws):
@@ -13,6 +14,9 @@ async def receiver(ws):
             message = await asyncio.wait_for(ws.recv(), timeout=1)
         except asyncio.TimeoutError:
             continue
+        except ConnectionClosed as exc:
+            print(f"WebSocket closed: code={exc.code}, reason={exc.reason}")
+            return
 
         data = json.loads(message)
         print("RECEIVED FROM BACKEND:")
@@ -23,39 +27,52 @@ async def main():
     uri = "ws://localhost:8000/twilio/media/ai-check-in"
 
     async with websockets.connect(uri) as ws:
-        await ws.send(json.dumps({
-            "event": "connected",
-            "protocol": "Call",
-            "version": "1.0.0",
-        }))
+        await ws.send(
+            json.dumps(
+                {
+                    "event": "connected",
+                    "protocol": "Call",
+                    "version": "1.0.0",
+                }
+            )
+        )
 
-        await ws.send(json.dumps({
-            "event": "start",
-            "start": {
-                "streamSid": "MZ_mock_stream_realtime_001",
-                "callSid": "CA_mock_ai_realtime_001",
-                "customParameters": {
-                    "senior_id": "1",
-                    "provider": "twilio_media_stream",
-                },
-                "mediaFormat": {
-                    "encoding": "audio/x-mulaw",
-                    "sampleRate": 8000,
-                    "channels": 1,
-                },
-            },
-            "streamSid": "MZ_mock_stream_realtime_001",
-        }))
+        await ws.send(
+            json.dumps(
+                {
+                    "event": "start",
+                    "start": {
+                        "streamSid": "MZ_mock_stream_realtime_001",
+                        "callSid": "CA_mock_ai_realtime_001",
+                        "customParameters": {
+                            "senior_id": "1",
+                            "provider": "twilio_media_stream",
+                        },
+                        "mediaFormat": {
+                            "encoding": "audio/x-mulaw",
+                            "sampleRate": 8000,
+                            "channels": 1,
+                        },
+                    },
+                    "streamSid": "MZ_mock_stream_realtime_001",
+                }
+            )
+        )
 
         await receiver(ws)
 
-        await ws.send(json.dumps({
-            "event": "stop",
-            "streamSid": "MZ_mock_stream_realtime_001",
-            "stop": {
-                "callSid": "CA_mock_ai_realtime_001",
-            },
-        }))
+        await ws.send(
+            json.dumps(
+                {
+                    "event": "stop",
+                    "streamSid": "MZ_mock_stream_realtime_001",
+                    "stop": {
+                        "callSid": "CA_mock_ai_realtime_001",
+                    },
+                }
+            )
+        )
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
