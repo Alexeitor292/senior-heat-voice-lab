@@ -277,6 +277,7 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                         session_id=session_id,
                         senior_id=senior_id,
                         stream_sid=stream_sid,
+                        call_sid=call_sid,
                         senior_name=senior_name,
                     )
                     await realtime_bridge.start()
@@ -311,6 +312,11 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                         "mark": message.get("mark"),
                     },
                 )
+
+                if realtime_bridge and realtime_bridge.should_end_after_twilio_mark():
+                    await realtime_bridge.complete_twilio_call(
+                        "senior_farewell_after_assistant_audio"
+                    )
 
             elif event == "stop":
                 stop = message.get("stop") or {}

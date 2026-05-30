@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 from collections import defaultdict
 from typing import Any
 
@@ -14,6 +15,7 @@ from app.config import settings
 from app.schemas.ai_call_sessions import AICallSessionTurnRequest
 from app.services.ai_call_session_adapter_service import ai_call_session_adapter_service
 from app.utils.safe_logging import safe_log_event
+from app.services.twilio_service import twilio_service
 
 
 REALTIME_URL_TEMPLATE = "wss://api.openai.com/v1/realtime?model={model}"
@@ -33,6 +35,30 @@ def _extract_text(event: dict[str, Any]) -> str | None:
 
     return None
 
+FAREWELL_PATTERNS = [
+    r"\bbye\b",
+    r"\bbye[-\s]?bye\b",
+    r"\bgoodbye\b",
+    r"\btalk to you later\b",
+    r"\bsee you\b",
+    r"\bthat'?s all\b",
+    r"\bthat is all\b",
+    r"\bi'?m done\b",
+    r"\bi am done\b",
+    r"\bnothing else\b",
+    r"\bno thank you\b",
+    r"\bno thanks\b",
+]
+
+
+def _looks_like_farewell(text: str) -> bool:
+    normalized = text.lower().strip()
+
+    if not normalized:
+        return False
+
+    return any(re.search(pattern, normalized) for pattern in FAREWELL_PATTERNS)
+
 
 class OpenAIRealtimeTwilioBridge:
     def __init__(
@@ -42,12 +68,14 @@ class OpenAIRealtimeTwilioBridge:
         session_id: int,
         senior_id: int,
         stream_sid: str,
+        call_sid: str | None = None,
         senior_name: str | None = None,
     ):
         self.twilio_websocket = twilio_websocket
         self.session_id = session_id
         self.senior_id = senior_id
         self.stream_sid = stream_sid
+        self.call_sid = call_sid
         self.senior_name = senior_name or "the senior"
 
         self.openai_ws = None
@@ -56,6 +84,9 @@ class OpenAIRealtimeTwilioBridge:
         self.output_audio_chunks_sent = 0
         self.user_turns_captured = 0
         self.assistant_turns_captured = 0
+        self.senior_requested_call_end = False
+        self.pending_call_end_after_audio = False
+        self.call_end_requested = False
 
     async def start(self) -> bool:
         if not settings.openai_realtime_enabled:
@@ -199,9 +230,10 @@ class OpenAIRealtimeTwilioBridge:
             "Only mention emergency services when the senior reports severe symptoms or direct danger, "
             "such as chest pain, trouble breathing, fainting, severe confusion, a fall, or asking for emergency help. "
             "Do not repeat the same emergency warning in every turn. "
+            "If the senior says goodbye, bye-bye, that is all, or otherwise clearly ends the conversation, "
+            "give one short warm goodbye and do not ask another question. "
             "Do not diagnose medical conditions."
         )
-
         # GA-style shape. If OpenAI returns a schema error, paste the error back
         # and we will adjust this object to the exact model/session version.
         await self._send_openai(
@@ -322,6 +354,17 @@ class OpenAIRealtimeTwilioBridge:
             return
 
         if event_type in {"response.output_audio.done", "response.audio.done"}:
+            if self.senior_requested_call_end:
+                self.pending_call_end_after_audio = True
+
+                safe_log_event(
+                    "AI Media Stream Queued Call End After Audio",
+                    {
+                        "session_id": self.session_id,
+                        "call_sid": self.call_sid,
+                    },
+                )
+
             await self._send_twilio_mark()
             return
 
@@ -341,6 +384,17 @@ class OpenAIRealtimeTwilioBridge:
                         text=transcript,
                     ),
                 )
+
+                if _looks_like_farewell(transcript):
+                    self.senior_requested_call_end = True
+
+                    safe_log_event(
+                        "AI Media Stream Senior Farewell Detected",
+                        {
+                            "session_id": self.session_id,
+                            "turns": self.user_turns_captured,
+                        },
+                    )
 
                 safe_log_event(
                     "OpenAI Realtime Senior Transcript Captured",
@@ -414,11 +468,24 @@ class OpenAIRealtimeTwilioBridge:
             await self._send_twilio_clear()
             return
 
+        if event_type == "response.done":
+            if self.senior_requested_call_end:
+                self.pending_call_end_after_audio = True
+
+            safe_log_event(
+                "OpenAI Realtime Event",
+                {
+                    "session_id": self.session_id,
+                    "event_type": event_type,
+                    "pending_call_end_after_audio": self.pending_call_end_after_audio,
+                },
+            )
+            return
+
         if event_type in {
             "session.created",
             "session.updated",
             "response.created",
-            "response.done",
             "input_audio_buffer.speech_stopped",
         }:
             safe_log_event(
@@ -429,6 +496,49 @@ class OpenAIRealtimeTwilioBridge:
                 },
             )
             return
+            
+
+    def should_end_after_twilio_mark(self) -> bool:
+        return self.pending_call_end_after_audio and not self.call_end_requested
+
+    async def complete_twilio_call(self, reason: str) -> None:
+        if self.call_end_requested:
+            return
+
+        if not self.call_sid:
+            safe_log_event(
+                "AI Media Stream Call End Skipped",
+                {
+                    "session_id": self.session_id,
+                    "reason": reason,
+                    "message": "Missing Twilio call SID.",
+                },
+            )
+            return
+
+        self.call_end_requested = True
+
+        safe_log_event(
+            "AI Media Stream Ending Twilio Call",
+            {
+                "session_id": self.session_id,
+                "call_sid": self.call_sid,
+                "reason": reason,
+            },
+        )
+
+        try:
+            await asyncio.to_thread(twilio_service.complete_call, self.call_sid)
+        except Exception as exc:
+            safe_log_event(
+                "AI Media Stream End Twilio Call Failed",
+                {
+                    "session_id": self.session_id,
+                    "call_sid": self.call_sid,
+                    "reason": reason,
+                    "error": repr(exc),
+                },
+            )
 
     async def _send_twilio_audio(self, payload: str) -> None:
         await self.twilio_websocket.send_text(

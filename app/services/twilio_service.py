@@ -151,6 +151,17 @@ class TwilioService:
 
         return call
 
+
+    def complete_call(self, call_sid: str):
+        """
+        Politely ends an active Twilio voice call.
+
+        This is used by the realtime AI bridge after the senior says goodbye
+        and Twilio has played the assistant's final goodbye audio.
+        """
+        return self.client.calls(call_sid).update(status="completed")
+
+
     def send_sms(self, to_phone_number: str, message: str):
         """
         Keeps SMS available for later production testing.
