@@ -228,6 +228,30 @@ Do not use wildcard `*` with credentials.
 
 CORS is not authentication. It only controls browser-enforced cross-origin access. Operational API routes still require backend authentication.
 
+
+## Production Safety Validation
+
+When:
+
+    APP_ENV=production
+
+the app validates that dangerous local-development settings are not being used.
+
+Production startup will fail if:
+
+    ADMIN_PASSWORD=change-me-local-dev
+    ADMIN_USERNAME=admin
+    AUTO_CREATE_DB_TABLES=true
+    DASHBOARD_AUTH_ENABLED=false
+    TWILIO_SIGNATURE_VALIDATION_ENABLED=false
+    AI_STREAM_TOKEN_SECRET is missing
+    LOG_PII=true
+    LOG_TRANSCRIPTS=true
+    LOG_RAW_ANALYSIS=true
+    CORS_ALLOWED_ORIGINS=*
+
+This is intentional. Production should fail closed instead of booting with unsafe defaults.
+
 ## Current Production Gaps
 
 Before production, address:
