@@ -21,6 +21,7 @@ from app.routes.demographics import router as demographics_router
 from app.routes.timeline import router as timeline_router
 from app.routes.operator_actions import router as operator_actions_router
 from app.routes.conversation_analysis import router as conversation_analysis_router
+from app.routes.check_ins import router as check_ins_router
 from app.security.basic_auth import BasicDashboardAuthMiddleware
 from app.security.twilio_signature import TwilioSignatureValidationMiddleware
 from app.services.checkin_store_service import checkin_store_service
@@ -81,6 +82,7 @@ app.include_router(timeline_router)
 app.include_router(operator_actions_router)
 app.include_router(twilio_router)
 app.include_router(ui_api_router)
+app.include_router(check_ins_router)
 
 
 @app.get("/")

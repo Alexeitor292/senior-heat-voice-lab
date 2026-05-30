@@ -402,3 +402,62 @@ export interface ConversationInsight {
   analyzer?: string | null;
   created_at?: string | null;
 }
+
+export interface CheckInReviewCheckIn {
+  id: number;
+  source?: string | null;
+  senior_phone_number?: string | null;
+  twilio_phone_number?: string | null;
+  senior_call_sid?: string | null;
+  senior_call_status?: string | null;
+  senior_call_duration_seconds?: number | null;
+  transcript?: string | null;
+  speech_confidence?: string | null;
+  risk_level: string;
+  reported_symptoms: string[];
+  red_flags: string[];
+  orientation_concern: boolean;
+  escalation_needed: boolean;
+  caregiver_summary?: string | null;
+  recommended_action?: string | null;
+  confidence_notes?: string | null;
+  analyzer?: string | null;
+  raw_analysis?: Record<string, unknown>;
+  caregiver_alert_required: boolean;
+  caregiver_alert_sent: boolean;
+  caregiver_alert_type?: string | null;
+  caregiver_alert_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CheckInReviewSenior {
+  id: number;
+  name: string;
+  phone_number: string;
+  preferred_language?: string | null;
+  notes?: string | null;
+  is_active: boolean;
+}
+
+export interface CheckInTranscriptTurn {
+  id?: number | null;
+  senior_id?: number | null;
+  check_in_id?: number | null;
+  call_session_id?: number | null;
+  senior_call_sid?: string | null;
+  turn_index: number;
+  speaker: string;
+  text: string;
+  started_at_ms?: number | null;
+  ended_at_ms?: number | null;
+  created_at?: string | null;
+}
+
+export interface CheckInReview {
+  check_in: CheckInReviewCheckIn;
+  senior?: CheckInReviewSenior | null;
+  insight?: ConversationInsight | null;
+  transcript_turns: CheckInTranscriptTurn[];
+  operator_actions: OperatorAction[];
+}

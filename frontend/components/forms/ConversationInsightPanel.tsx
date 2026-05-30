@@ -13,6 +13,8 @@ import { ActionButton } from "@/components/ui/ActionButton";
 import { getConversationInsights } from "@/lib/api";
 import type { ConversationInsight, Senior } from "@/lib/types";
 
+import Link from "next/link";
+
 const CARD_SHADOW =
   "0 0 0 1px #E8EDF3, 0 1px 3px 0 rgb(7 29 58 / 0.05)";
 
@@ -433,8 +435,18 @@ export function ConversationInsightPanel({ senior }: { senior: Senior }) {
             )}
 
             <p style={{ fontSize: 10.5, color: "#94A8BC" }}>
-              Analyzer: {latestInsight.analyzer ?? "unknown"} • Check-in #
-              {latestInsight.check_in_id ?? "—"}
+            Analyzer: {latestInsight.analyzer ?? "unknown"} •{" "}
+            {latestInsight.check_in_id ? (
+                <Link
+                href={`/check-ins/${latestInsight.check_in_id}`}
+                className="transition-interactive hover:text-brand-blue"
+                style={{ color: "#1267D8", fontWeight: 600 }}
+                >
+                View Check-In #{latestInsight.check_in_id}
+                </Link>
+            ) : (
+                "Check-in —"
+            )}
             </p>
           </>
         )}

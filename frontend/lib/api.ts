@@ -22,6 +22,7 @@ import type {
   OperatorActionUpdatePayload,
   OperatorActionStatusFilter,
   ConversationInsight,
+  CheckInReview,
 } from "./types";
 import {
   MOCK_SENIORS,
@@ -150,6 +151,7 @@ export async function getConversationInsights(
     `/seniors/${seniorId}/conversation-insights`
   );
 }
+
 // Support Network --------------------------------------------------------
 
 export async function getSupportNetwork(
@@ -333,6 +335,16 @@ export async function getHeatCheck(id: string): Promise<HeatCheck | null> {
       return MOCK_HEAT_CHECK;
     }
 
+    return null;
+  }
+}
+
+export async function getCheckInReview(
+  checkInId: string | number
+): Promise<CheckInReview | null> {
+  try {
+    return await apiFetch<CheckInReview>(`/check-ins/${checkInId}/review`);
+  } catch {
     return null;
   }
 }
