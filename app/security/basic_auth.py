@@ -28,6 +28,7 @@ PROTECTED_PATH_PREFIXES = (
     "/schedules",
     "/scheduler",
     "/operational-status",
+    "/ai-call-sessions",
     "/debug",
 )
 
