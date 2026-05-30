@@ -116,6 +116,27 @@ function buildOutcomeNote(
   return `${existingNote}\nOutcome: ${trimmedOutcome}`;
 }
 
+function isLegacyEvidenceNote(note?: string | null): boolean {
+  if (!note) return false;
+
+  return (
+    note.includes("Created automatically from AI conversation analysis check-in") ||
+    note.includes("Also reinforced by AI conversation analysis check-in")
+  );
+}
+
+function visibleActionNote(action: OperatorAction): string | null {
+  const note = action.note?.trim();
+
+  if (!note) return null;
+
+  if ((action.evidence?.length ?? 0) > 0 && isLegacyEvidenceNote(note)) {
+    return null;
+  }
+
+  return note;
+}
+
 function isActionable(action: OperatorAction) {
   return ACTIONABLE_STATUSES.has((action.status || "").toLowerCase());
 }
@@ -397,8 +418,10 @@ export function ActionQueueView() {
 
           {!loading &&
             actions.map((action) => {
-              const isUpdating = updatingId === action.id;
-              const actionable = isActionable(action);
+                const isUpdating = updatingId === action.id;
+                const actionable = isActionable(action);
+                const actionEvidence = action.evidence ?? [];
+                const displayNote = visibleActionNote(action);
 
               return (
                 <div
@@ -464,19 +487,69 @@ export function ActionQueueView() {
                         {action.reason || "No reason provided."}
                       </p>
 
-                      {action.note && (
+                      {displayNote && (
                         <p
-                          className="mt-2 whitespace-pre-line"
-                          style={{
+                            className="mt-2 whitespace-pre-line"
+                            style={{
                             fontSize: 12,
                             color: "#667085",
                             lineHeight: 1.5,
-                          }}
+                            }}
                         >
-                          <span className="font-medium">Note: </span>
-                          {action.note}
+                            <span className="font-medium">Note: </span>
+                            {displayNote}
                         </p>
-                      )}
+                        )}
+
+                        {actionEvidence.length > 0 && (
+                        <div
+                            className="mt-3 rounded-lg px-3 py-2"
+                            style={{
+                            background: "white",
+                            border: "1px solid #E8EDF3",
+                            }}
+                        >
+                            <p className="label-caps mb-1">
+                            Evidence From {actionEvidence.length} Check-In
+                            {actionEvidence.length === 1 ? "" : "s"}
+                            </p>
+
+                            <div className="space-y-1">
+                            {actionEvidence.slice(0, 4).map((item) => (
+                                <div key={item.id} className="flex gap-1.5">
+                                <Link
+                                    href={`/check-ins/${item.check_in_id}`}
+                                    className="shrink-0 transition-interactive hover:text-brand-blue"
+                                    style={{
+                                    fontSize: 11.5,
+                                    color: "#1267D8",
+                                    fontWeight: 600,
+                                    }}
+                                >
+                                    Check-in #{item.check_in_id}
+                                </Link>
+
+                                <p
+                                    style={{
+                                    fontSize: 11.5,
+                                    color: "#667085",
+                                    lineHeight: 1.45,
+                                    }}
+                                >
+                                    {item.reason}
+                                </p>
+                                </div>
+                            ))}
+                            </div>
+
+                            {actionEvidence.length > 4 && (
+                            <p className="mt-1" style={{ fontSize: 11, color: "#94A8BC" }}>
+                                +{actionEvidence.length - 4} more check-in
+                                {actionEvidence.length - 4 === 1 ? "" : "s"}
+                            </p>
+                            )}
+                        </div>
+                        )}
 
                       {action.target_contact_id && (
                         <p

@@ -346,6 +346,8 @@ export interface OperatorAction {
   created_by?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  evidence?: OperatorActionEvidence[];
+  evidence_count?: number;
 }
 
 export interface OperatorActionPayload {

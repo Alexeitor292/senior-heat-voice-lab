@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import Any
 
 from app.db.database import SessionLocal
-from app.db.models import OperatorAction, SeniorProfile
+from app.db.models import OperatorAction, OperatorActionEvidence, SeniorProfile
 
 
 PENDING_ACTION_STATUSES = {"requested", "in_progress"}
@@ -13,10 +14,28 @@ def _iso(value):
     return value.isoformat() if value else None
 
 
+def operator_action_evidence_to_dict(
+    row: OperatorActionEvidence,
+) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "operator_action_id": row.operator_action_id,
+        "senior_id": row.senior_id,
+        "check_in_id": row.check_in_id,
+        "conversation_insight_id": row.conversation_insight_id,
+        "source": row.source,
+        "reason": row.reason,
+        "created_at": _iso(row.created_at),
+    }
+
+
 def operator_action_to_dict(
     row: OperatorAction,
     senior: SeniorProfile | None = None,
+    evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    action_evidence = evidence or []
+
     result = {
         "id": row.id,
         "senior_id": row.senior_id,
@@ -28,6 +47,8 @@ def operator_action_to_dict(
         "created_by": row.created_by,
         "created_at": _iso(row.created_at),
         "updated_at": _iso(row.updated_at),
+        "evidence": action_evidence,
+        "evidence_count": len(action_evidence),
     }
 
     if senior is not None:
@@ -35,6 +56,30 @@ def operator_action_to_dict(
         result["senior_phone_number"] = senior.phone_number
 
     return result
+
+
+def _load_evidence_by_action_id(
+    db,
+    action_ids: list[int],
+) -> dict[int, list[dict[str, Any]]]:
+    if not action_ids:
+        return {}
+
+    rows = (
+        db.query(OperatorActionEvidence)
+        .filter(OperatorActionEvidence.operator_action_id.in_(action_ids))
+        .order_by(OperatorActionEvidence.created_at.desc())
+        .all()
+    )
+
+    grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
+
+    for row in rows:
+        grouped[row.operator_action_id].append(
+            operator_action_evidence_to_dict(row)
+        )
+
+    return dict(grouped)
 
 
 class OperatorActionService:
@@ -84,7 +129,19 @@ class OperatorActionService:
                 .all()
             )
 
-            return [operator_action_to_dict(row, senior) for row in rows]
+            evidence_by_action_id = _load_evidence_by_action_id(
+                db=db,
+                action_ids=[row.id for row in rows],
+            )
+
+            return [
+                operator_action_to_dict(
+                    row,
+                    senior,
+                    evidence=evidence_by_action_id.get(row.id, []),
+                )
+                for row in rows
+            ]
 
     def list_actions(
         self,
@@ -111,8 +168,18 @@ class OperatorActionService:
                 .all()
             )
 
+            action_ids = [action.id for action, _senior in rows]
+            evidence_by_action_id = _load_evidence_by_action_id(
+                db=db,
+                action_ids=action_ids,
+            )
+
             return [
-                operator_action_to_dict(action, senior)
+                operator_action_to_dict(
+                    action,
+                    senior,
+                    evidence=evidence_by_action_id.get(action.id, []),
+                )
                 for action, senior in rows
             ]
 
@@ -149,8 +216,16 @@ class OperatorActionService:
             db.refresh(action)
 
             senior = db.get(SeniorProfile, action.senior_id)
+            evidence_by_action_id = _load_evidence_by_action_id(
+                db=db,
+                action_ids=[action.id],
+            )
 
-            return operator_action_to_dict(action, senior)
+            return operator_action_to_dict(
+                action,
+                senior,
+                evidence=evidence_by_action_id.get(action.id, []),
+            )
 
 
 operator_action_service = OperatorActionService()
