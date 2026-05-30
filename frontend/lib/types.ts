@@ -365,6 +365,17 @@ export interface OperatorActionUpdatePayload {
   created_by?: string | null;
 }
 
+export interface OperatorActionEvidence {
+  id: number;
+  operator_action_id: number;
+  senior_id: number;
+  check_in_id: number;
+  conversation_insight_id?: number | null;
+  source: string;
+  reason: string;
+  created_at?: string | null;
+}
+
 export interface ConversationRecommendedAction {
   action_type: OperatorActionType | string;
   reason: string;
@@ -460,4 +471,6 @@ export interface CheckInReview {
   insight?: ConversationInsight | null;
   transcript_turns: CheckInTranscriptTurn[];
   operator_actions: OperatorAction[];
+  operator_action_evidence: OperatorActionEvidence[];
 }
+

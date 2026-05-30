@@ -62,3 +62,4 @@ class ConversationAnalysisStoredResponse(BaseModel):
     analysis: ConversationAnalysisResult
     operator_actions_created: list[dict]
     operator_actions_updated: list[dict] = Field(default_factory=list)
+    operator_action_evidence: list[dict] = Field(default_factory=list)

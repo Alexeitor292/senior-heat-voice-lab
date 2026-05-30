@@ -12,6 +12,7 @@ from app.db.models import (
     ConversationInsight,
     HeatRiskObservation,
     OperatorAction,
+    OperatorActionEvidence,
     SeniorMemoryCandidate,
     SeniorProfile,
     SupportContact,
@@ -271,23 +272,51 @@ def _recommended_action_summary(
     return f"{risk_level.capitalize()} follow-up recommended: " + ", ".join(labels)
 
 
-def _append_check_in_note(
-    existing_note: str | None,
+def _operator_action_evidence_to_dict(row: OperatorActionEvidence) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "operator_action_id": row.operator_action_id,
+        "senior_id": row.senior_id,
+        "check_in_id": row.check_in_id,
+        "conversation_insight_id": row.conversation_insight_id,
+        "source": row.source,
+        "reason": row.reason,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+def _ensure_operator_action_evidence(
+    db,
+    operator_action: OperatorAction,
+    senior_id: int,
     check_in_id: int,
+    insight_id: int | None,
     reason: str,
-) -> str:
-    reinforcement = (
-        f"Also reinforced by AI conversation analysis check-in #{check_in_id}: "
-        f"{reason}"
+) -> OperatorActionEvidence:
+    existing = (
+        db.query(OperatorActionEvidence)
+        .filter(OperatorActionEvidence.operator_action_id == operator_action.id)
+        .filter(OperatorActionEvidence.check_in_id == check_in_id)
+        .first()
     )
 
-    if not existing_note:
-        return reinforcement
+    if existing:
+        return existing
 
-    if f"check-in #{check_in_id}" in existing_note:
-        return existing_note
+    evidence = OperatorActionEvidence(
+        operator_action_id=operator_action.id,
+        senior_id=senior_id,
+        check_in_id=check_in_id,
+        conversation_insight_id=insight_id,
+        source="ai_conversation_analysis",
+        reason=reason,
+    )
 
-    return f"{existing_note}\n{reinforcement}"
+    db.add(evidence)
+    db.commit()
+    db.refresh(evidence)
+
+    return evidence
 
 
 def _operator_action_to_summary_dict(row: OperatorAction) -> dict[str, Any]:
@@ -668,6 +697,7 @@ class AIConversationAnalysisService:
 
             operator_actions_created = []
             operator_actions_updated = []
+            operator_action_evidence = []
 
             if request.create_operator_actions:
                 for action in analysis.safety_assessment.recommended_actions:
@@ -680,19 +710,22 @@ class AIConversationAnalysisService:
                     )
 
                     if existing_pending:
-                        existing_pending.note = _append_check_in_note(
-                            existing_note=existing_pending.note,
+                        evidence = _ensure_operator_action_evidence(
+                            db=db,
+                            operator_action=existing_pending,
+                            senior_id=senior_id,
                             check_in_id=check_in.id,
+                            insight_id=insight.id,
                             reason=action.reason,
                         )
 
-                        # Preserve the original reason. The note now carries the later
-                        # reinforcement context, and the review page can link it back.
-                        db.commit()
                         db.refresh(existing_pending)
 
                         operator_actions_updated.append(
                             _operator_action_to_summary_dict(existing_pending)
+                        )
+                        operator_action_evidence.append(
+                            _operator_action_evidence_to_dict(evidence)
                         )
 
                         continue
@@ -702,7 +735,7 @@ class AIConversationAnalysisService:
                         action_type=action.action_type,
                         status="requested",
                         reason=action.reason,
-                        note=f"Created automatically from AI conversation analysis check-in #{check_in.id}.",
+                        note=None,
                         target_contact_id=action.target_contact_id,
                         created_by="ai_conversation_analysis",
                     )
@@ -715,6 +748,19 @@ class AIConversationAnalysisService:
                         _operator_action_to_summary_dict(operator_action)
                     )
 
+                    evidence = _ensure_operator_action_evidence(
+                        db=db,
+                        operator_action=operator_action,
+                        senior_id=senior_id,
+                        check_in_id=check_in.id,
+                        insight_id=insight.id,
+                        reason=action.reason,
+                    )
+
+                    operator_action_evidence.append(
+                        _operator_action_evidence_to_dict(evidence)
+                    )
+
             db.commit()
 
             return {
@@ -724,6 +770,7 @@ class AIConversationAnalysisService:
                 "analysis": analysis.model_dump(),
                 "operator_actions_created": operator_actions_created,
                 "operator_actions_updated": operator_actions_updated,
+                "operator_action_evidence": operator_action_evidence,
             }
 
     def list_insights_for_senior(

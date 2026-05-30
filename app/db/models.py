@@ -249,6 +249,52 @@ class OperatorAction(Base):
         onupdate=utc_now,
     )
 
+class OperatorActionEvidence(Base):
+    __tablename__ = "operator_action_evidence"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "operator_action_id",
+            "check_in_id",
+            name="uq_operator_action_evidence_action_checkin",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    operator_action_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("operator_actions.id"),
+        index=True,
+        nullable=False,
+    )
+
+    senior_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("senior_profiles.id"),
+        index=True,
+        nullable=False,
+    )
+
+    check_in_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("check_ins.id"),
+        index=True,
+        nullable=False,
+    )
+
+    conversation_insight_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("conversation_insights.id"),
+        index=True,
+        nullable=True,
+    )
+
+    source: Mapped[str] = mapped_column(String(80), default="ai_conversation_analysis")
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
 class CheckInSchedule(Base):
     __tablename__ = "check_in_schedules"
 

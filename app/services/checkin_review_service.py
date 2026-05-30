@@ -8,10 +8,10 @@ from app.db.models import (
     CheckIn,
     ConversationInsight,
     OperatorAction,
+    OperatorActionEvidence,
     SeniorProfile,
     TranscriptTurn,
 )
-
 
 def _iso(value):
     return value.isoformat() if value else None
@@ -128,6 +128,18 @@ def _operator_action_to_dict(row: OperatorAction) -> dict[str, Any]:
         "updated_at": _iso(row.updated_at),
     }
 
+def _operator_action_evidence_to_dict(row: OperatorActionEvidence) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "operator_action_id": row.operator_action_id,
+        "senior_id": row.senior_id,
+        "check_in_id": row.check_in_id,
+        "conversation_insight_id": row.conversation_insight_id,
+        "source": row.source,
+        "reason": row.reason,
+        "created_at": _iso(row.created_at),
+    }
+
 
 def _fallback_transcript_turns(check_in: CheckIn) -> list[dict[str, Any]]:
     if not check_in.transcript:
@@ -207,12 +219,32 @@ class CheckInReviewService:
             if not transcript_turns:
                 transcript_turns = _fallback_transcript_turns(check_in)
 
-            related_action_rows = (
-                db.query(OperatorAction)
-                .filter(OperatorAction.note.contains(f"check-in #{check_in_id}"))
-                .order_by(OperatorAction.created_at.desc())
+            evidence_rows = (
+                db.query(OperatorActionEvidence)
+                .filter(OperatorActionEvidence.check_in_id == check_in_id)
+                .order_by(OperatorActionEvidence.created_at.desc())
                 .all()
             )
+
+            evidence_action_ids = [row.operator_action_id for row in evidence_rows]
+
+            related_action_rows = []
+
+            if evidence_action_ids:
+                related_action_rows = (
+                    db.query(OperatorAction)
+                    .filter(OperatorAction.id.in_(evidence_action_ids))
+                    .order_by(OperatorAction.created_at.desc())
+                    .all()
+                )
+            else:
+                # Backward compatibility for old test records created before evidence tracking.
+                related_action_rows = (
+                    db.query(OperatorAction)
+                    .filter(OperatorAction.note.contains(f"check-in #{check_in_id}"))
+                    .order_by(OperatorAction.created_at.desc())
+                    .all()
+                )
 
             return {
                 "check_in": _check_in_to_dict(check_in),
@@ -221,6 +253,9 @@ class CheckInReviewService:
                 "transcript_turns": transcript_turns,
                 "operator_actions": [
                     _operator_action_to_dict(row) for row in related_action_rows
+                ],
+                "operator_action_evidence": [
+                    _operator_action_evidence_to_dict(row) for row in evidence_rows
                 ],
             }
 

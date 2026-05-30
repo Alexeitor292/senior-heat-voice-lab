@@ -16,6 +16,7 @@ import type {
   CheckInTranscriptTurn,
   ConversationInsight,
   OperatorAction,
+  OperatorActionEvidence,
 } from "@/lib/types";
 
 const CARD_SHADOW =
@@ -329,45 +330,105 @@ function InsightSummary({ insight }: { insight: ConversationInsight | null | und
   );
 }
 
-function RelatedActions({ actions }: { actions: OperatorAction[] }) {
+function RelatedActions({
+  actions,
+  evidence,
+}: {
+  actions: OperatorAction[];
+  evidence: OperatorActionEvidence[];
+}) {
   if (actions.length === 0) {
     return (
       <p style={{ fontSize: 12.5, color: "#667085", lineHeight: 1.5 }}>
-        No operator actions were directly created from this check-in.
+        No operator actions were directly linked to this check-in.
       </p>
     );
   }
 
+  const evidenceByActionId = new Map<number, OperatorActionEvidence[]>();
+
+  for (const item of evidence) {
+    const current = evidenceByActionId.get(item.operator_action_id) ?? [];
+    current.push(item);
+    evidenceByActionId.set(item.operator_action_id, current);
+  }
+
   return (
     <div className="space-y-2">
-      {actions.map((action) => (
-        <div
-          key={action.id}
-          className="rounded-lg px-3 py-3"
-          style={{ background: "#F8FAFC", border: "1px solid #E8EDF3" }}
-        >
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold" style={{ fontSize: 12.5, color: "#071D3A" }}>
-              {formatLabel(action.action_type)}
-            </span>
-            <Pill style={riskStyle(action.status)}>{formatLabel(action.status)}</Pill>
-          </div>
-          <p className="mt-1" style={{ fontSize: 12.5, color: "#667085", lineHeight: 1.5 }}>
-            {action.reason || "No reason provided."}
-          </p>
-          {action.note && (
-            <p className="mt-1" style={{ fontSize: 11.5, color: "#94A8BC", lineHeight: 1.45 }}>
-              {action.note}
+      {actions.map((action) => {
+        const actionEvidence = evidenceByActionId.get(action.id) ?? [];
+
+        return (
+          <div
+            key={action.id}
+            className="rounded-lg px-3 py-3"
+            style={{ background: "#F8FAFC", border: "1px solid #E8EDF3" }}
+          >
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className="font-semibold"
+                style={{ fontSize: 12.5, color: "#071D3A" }}
+              >
+                {formatLabel(action.action_type)}
+              </span>
+              <Pill style={riskStyle(action.status)}>
+                {formatLabel(action.status)}
+              </Pill>
+            </div>
+
+            <p
+              className="mt-1"
+              style={{ fontSize: 12.5, color: "#667085", lineHeight: 1.5 }}
+            >
+              {action.reason || "No reason provided."}
             </p>
-          )}
-        </div>
-      ))}
+
+            {actionEvidence.length > 0 ? (
+              <div className="mt-2 space-y-1">
+                <p className="label-caps">Evidence From This Check-In</p>
+                {actionEvidence.map((item) => (
+                  <p
+                    key={item.id}
+                    style={{
+                      fontSize: 11.5,
+                      color: "#667085",
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    {item.reason}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              action.note && (
+                <p
+                  className="mt-1"
+                  style={{
+                    fontSize: 11.5,
+                    color: "#94A8BC",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {action.note}
+                </p>
+              )
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 export function CheckInReviewView({ review }: { review: CheckInReview }) {
-  const { check_in: checkIn, senior, insight, transcript_turns, operator_actions } = review;
+  const {
+    check_in: checkIn,
+    senior,
+    insight,
+    transcript_turns,
+    operator_actions,
+    operator_action_evidence,
+    } = review;
 
   return (
     <div className="overflow-auto h-full">
@@ -510,7 +571,10 @@ export function CheckInReviewView({ review }: { review: CheckInReview }) {
           </Card>
 
           <Card title="Related Operator Actions" icon={<CheckCircle2 size={15} />}>
-            <RelatedActions actions={operator_actions} />
+            <RelatedActions
+            actions={operator_actions}
+            evidence={operator_action_evidence}
+            />
           </Card>
 
           {insight && (

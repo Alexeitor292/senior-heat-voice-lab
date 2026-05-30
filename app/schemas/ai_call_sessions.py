@@ -80,3 +80,4 @@ class AICallCompletionResponse(BaseModel):
     analysis: dict[str, Any]
     operator_actions_created: list[dict]
     operator_actions_updated: list[dict] = Field(default_factory=list)
+    operator_action_evidence: list[dict] = Field(default_factory=list)

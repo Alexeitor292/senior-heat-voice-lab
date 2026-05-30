@@ -313,6 +313,7 @@ class AICallSessionAdapterService:
             "analysis": result["analysis"],
             "operator_actions_created": result.get("operator_actions_created", []),
             "operator_actions_updated": result.get("operator_actions_updated", []),
+            "operator_action_evidence": result.get("operator_action_evidence", []),
         }
 
     def complete_call(
@@ -391,6 +392,7 @@ class AICallSessionAdapterService:
             "analysis": result["analysis"],
             "operator_actions_created": result.get("operator_actions_created", []),
             "operator_actions_updated": result.get("operator_actions_updated", []),
+            "operator_action_evidence": result.get("operator_action_evidence", []),
         }
 
 
