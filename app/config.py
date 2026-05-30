@@ -36,11 +36,20 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password: str = "change-me-local-dev"
 
+    cors_allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     twilio_signature_validation_enabled: bool = True
 
     log_pii: bool = False
     log_transcripts: bool = False
     log_raw_analysis: bool = False
+
+    def cors_allowed_origins_list(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
     model_config = SettingsConfigDict(
         env_file=".env",

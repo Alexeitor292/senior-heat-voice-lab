@@ -211,6 +211,23 @@ If `AI_STREAM_TOKEN_SECRET` is not set, local development falls back to `TWILIO_
 
 Production should set a dedicated `AI_STREAM_TOKEN_SECRET`.
 
+
+## CORS
+
+CORS controls which browser origins may call the FastAPI backend directly.
+
+Configuration:
+
+    CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
+Production should use explicit frontend origins, for example:
+
+    CORS_ALLOWED_ORIGINS=https://your-frontend-domain.com
+
+Do not use wildcard `*` with credentials.
+
+CORS is not authentication. It only controls browser-enforced cross-origin access. Operational API routes still require backend authentication.
+
 ## Current Production Gaps
 
 Before production, address:
