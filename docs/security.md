@@ -78,6 +78,28 @@ Incorrect:
 
 Anything prefixed with `NEXT_PUBLIC_` can be exposed to the browser.
 
+## Frontend Proxy Production Guard
+
+The Next.js backend proxy is available at:
+
+    /api/backend/*
+
+In local development, this proxy lets the frontend call protected FastAPI routes without exposing backend credentials to the browser.
+
+In production, the proxy is disabled by default unless:
+
+    ENABLE_BACKEND_PROXY_IN_PRODUCTION=true
+
+Do not set this to true until real frontend user authentication is implemented.
+
+Without user authentication, a deployed proxy could become a public tunnel into protected FastAPI routes.
+
+The proxy also restricts which backend route prefixes may be forwarded using:
+
+    BACKEND_PROXY_ALLOWED_PREFIXES=/ui-api,/seniors,/calls,/operator-actions,/check-ins,/schedules,/scheduler,/operational-status,/ai-call-sessions,/support-contacts,/heat-settings
+
+Twilio webhook routes must not be proxied through Next.js. They should remain protected by Twilio signature validation on the FastAPI backend.
+
 ## Local Secrets
 
 Never commit:

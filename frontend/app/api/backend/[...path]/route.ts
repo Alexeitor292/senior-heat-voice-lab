@@ -1,4 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const INTERNAL_API_BASE_URL =
   process.env.INTERNAL_API_BASE_URL ??
@@ -7,6 +10,29 @@ const INTERNAL_API_BASE_URL =
 
 const API_BASIC_AUTH_USERNAME = process.env.API_BASIC_AUTH_USERNAME;
 const API_BASIC_AUTH_PASSWORD = process.env.API_BASIC_AUTH_PASSWORD;
+
+const ENABLE_BACKEND_PROXY_IN_PRODUCTION =
+  process.env.ENABLE_BACKEND_PROXY_IN_PRODUCTION === "true";
+
+const ALLOWED_BACKEND_PATH_PREFIXES = (
+  process.env.BACKEND_PROXY_ALLOWED_PREFIXES ??
+  [
+    "/ui-api",
+    "/seniors",
+    "/calls",
+    "/operator-actions",
+    "/check-ins",
+    "/schedules",
+    "/scheduler",
+    "/operational-status",
+    "/ai-call-sessions",
+    "/support-contacts",
+    "/heat-settings",
+  ].join(",")
+)
+  .split(",")
+  .map((prefix) => prefix.trim())
+  .filter(Boolean);
 
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
@@ -19,16 +45,66 @@ const HOP_BY_HOP_HEADERS = new Set([
   "upgrade",
 ]);
 
+function jsonError(message: string, status: number): NextResponse {
+  return NextResponse.json(
+    {
+      error: message,
+    },
+    {
+      status,
+    }
+  );
+}
+
 function encodeBasicAuth(username: string, password: string): string {
   return Buffer.from(`${username}:${password}`, "utf-8").toString("base64");
 }
 
-function buildBackendUrl(
-  pathParts: string[] | undefined,
-  request: NextRequest
-): string {
-  const path = `/${(pathParts ?? []).join("/")}`;
-  const backendUrl = new URL(path, INTERNAL_API_BASE_URL);
+function pathMatchesPrefix(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+
+function isAllowedBackendPath(path: string): boolean {
+  return ALLOWED_BACKEND_PATH_PREFIXES.some((prefix) =>
+    pathMatchesPrefix(path, prefix)
+  );
+}
+
+function assertProxyAllowedForEnvironment(): NextResponse | null {
+  if (
+    process.env.NODE_ENV === "production" &&
+    !ENABLE_BACKEND_PROXY_IN_PRODUCTION
+  ) {
+    return jsonError(
+      "Backend proxy is disabled in production. Set ENABLE_BACKEND_PROXY_IN_PRODUCTION=true only after real frontend user authentication is enforced.",
+      403
+    );
+  }
+
+  return null;
+}
+
+function assertBackendCredentialsAvailable(): NextResponse | null {
+  if (
+    process.env.NODE_ENV === "production" &&
+    ENABLE_BACKEND_PROXY_IN_PRODUCTION &&
+    (!API_BASIC_AUTH_USERNAME || !API_BASIC_AUTH_PASSWORD)
+  ) {
+    return jsonError(
+      "Backend proxy is enabled in production, but backend credentials are not configured.",
+      500
+    );
+  }
+
+  return null;
+}
+
+function buildBackendPath(pathParts: string[] | undefined): string {
+  return `/${(pathParts ?? []).join("/")}`;
+}
+
+function buildBackendUrl(backendPath: string, request: NextRequest): string {
+  const backendUrl = new URL(backendPath, INTERNAL_API_BASE_URL);
 
   request.nextUrl.searchParams.forEach((value, key) => {
     backendUrl.searchParams.append(key, value);
@@ -88,9 +164,27 @@ async function proxyRequest(
   request: NextRequest,
   context: { params: Promise<{ path?: string[] }> }
 ): Promise<Response> {
-  const { path } = await context.params;
-  const backendUrl = buildBackendUrl(path, request);
+  const environmentError = assertProxyAllowedForEnvironment();
+  if (environmentError) {
+    return environmentError;
+  }
 
+  const credentialsError = assertBackendCredentialsAvailable();
+  if (credentialsError) {
+    return credentialsError;
+  }
+
+  const { path } = await context.params;
+  const backendPath = buildBackendPath(path);
+
+  if (!isAllowedBackendPath(backendPath)) {
+    return jsonError(
+      `Backend proxy path is not allowed: ${backendPath}`,
+      403
+    );
+  }
+
+  const backendUrl = buildBackendUrl(backendPath, request);
   const method = request.method.toUpperCase();
   const hasBody = !["GET", "HEAD"].includes(method);
 
