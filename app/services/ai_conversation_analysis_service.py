@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from typing import Any
 
 from app.db.database import SessionLocal
@@ -13,6 +14,7 @@ from app.db.models import (
     OperatorAction,
     SeniorMemoryCandidate,
     SeniorProfile,
+    SupportContact,
     TranscriptTurn,
 )
 from app.schemas.conversation_analysis import (
@@ -123,62 +125,98 @@ def _matched_patterns(text: str, patterns: list[str]) -> list[str]:
     return [pattern for pattern in patterns if pattern in text]
 
 
-def _extract_possible_names(turns: list[TranscriptTurnInput]) -> list[str]:
-    # Prototype-only extractor.
-    # Only inspect senior/user turns so assistant greetings do not become memories.
-    senior_text = " ".join(
+def _senior_turn_text(turns: list[TranscriptTurnInput]) -> str:
+    return " ".join(
         turn.text
         for turn in turns
         if (turn.speaker or "").lower().strip() in {"senior", "user", "caller"}
     )
 
-    candidates = re.findall(r"\b[A-Z][a-z]{2,}\b", senior_text)
 
-    ignored = {
-        "The",
-        "This",
-        "That",
-        "There",
-        "Today",
-        "Yesterday",
-        "Tomorrow",
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-        "How",
-        "Are",
-        "Also",
-        "And",
-        "But",
-        "Because",
-        "Okay",
-        "Hi",
-        "Hello",
-        "Thanks",
-        "Thank",
-        "Yes",
-        "No",
-        "Maybe",
-        "Really",
-        "Just",
-        "Little",
-        "Very",
-    }
+def _normalize_for_matching(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value)
+    without_accents = "".join(
+        char for char in normalized if not unicodedata.combining(char)
+    )
 
-    unique = []
+    return without_accents.casefold()
 
-    for name in candidates:
-        if name in ignored:
+
+def _phrase_exists(text: str, phrase: str) -> bool:
+    normalized_text = _normalize_for_matching(text)
+    normalized_phrase = _normalize_for_matching(phrase).strip()
+
+    if not normalized_phrase:
+        return False
+
+    # This is not entity extraction. It is exact known-name matching with boundaries.
+    # It prevents false positives like matching "Ana" inside "banana".
+    pattern = rf"(?<!\w){re.escape(normalized_phrase)}(?!\w)"
+
+    return re.search(pattern, normalized_text) is not None
+
+
+def _contact_aliases(contact: SupportContact) -> list[str]:
+    full_name = (contact.name or "").strip()
+
+    if not full_name:
+        return []
+
+    aliases = [full_name]
+
+    first_name = full_name.split()[0].strip()
+
+    if len(first_name) >= 3 and first_name not in aliases:
+        aliases.append(first_name)
+
+    return aliases
+
+
+def _known_support_contact_mentions(
+    senior_id: int,
+    turns: list[TranscriptTurnInput],
+) -> list[dict[str, Any]]:
+    senior_text = _senior_turn_text(turns)
+
+    if not senior_text.strip():
+        return []
+
+    with SessionLocal() as db:
+        contacts = (
+            db.query(SupportContact)
+            .filter(SupportContact.senior_id == senior_id)
+            .filter(SupportContact.is_active.is_(True))
+            .order_by(SupportContact.priority.asc(), SupportContact.id.asc())
+            .all()
+        )
+
+    mentions: list[dict[str, Any]] = []
+
+    for contact in contacts:
+        matched_alias = None
+
+        for alias in _contact_aliases(contact):
+            if _phrase_exists(senior_text, alias):
+                matched_alias = alias
+                break
+
+        if not matched_alias:
             continue
 
-        if name not in unique:
-            unique.append(name)
+        mentions.append(
+            {
+                "id": contact.id,
+                "name": contact.name,
+                "matched_alias": matched_alias,
+                "relationship": contact.relationship,
+                "contact_type": contact.contact_type,
+                "priority": contact.priority,
+                "can_receive_alerts": contact.can_receive_alerts,
+                "is_emergency_contact": contact.is_emergency_contact,
+            }
+        )
 
-    return unique[:5]
+    return mentions
 
 
 def _latest_heat_context(
@@ -284,6 +322,15 @@ def analyze_conversation(
     low_mood = _matched_patterns(text, LOW_MOOD_PATTERNS)
     routine_signals = _matched_patterns(text, FOOD_SLEEP_ROUTINE_PATTERNS)
 
+    known_contact_mentions = _known_support_contact_mentions(
+        senior_id=senior_id,
+        turns=turns,
+    )
+
+    primary_mentioned_contact_id = (
+        known_contact_mentions[0]["id"] if known_contact_mentions else None
+    )
+
     if heat_risk_value is not None and heat_risk_value >= 3:
         reason_codes.append("heat_risk_major_or_higher")
     elif heat_risk_value is not None and heat_risk_value >= 2:
@@ -346,6 +393,7 @@ def analyze_conversation(
             RecommendedOperatorAction(
                 action_type="message_support",
                 reason="Support contact should check on the senior after concerning heat-related symptoms.",
+                target_contact_id=primary_mentioned_contact_id,
             )
         )
     elif risk_level == "yellow":
@@ -353,6 +401,7 @@ def analyze_conversation(
             RecommendedOperatorAction(
                 action_type="message_support",
                 reason="Senior may benefit from a support check-in based on the conversation.",
+                target_contact_id=primary_mentioned_contact_id,
             )
         )
 
@@ -378,10 +427,8 @@ def analyze_conversation(
     if routine_signals:
         topics.append("sleep, food, or routine")
 
-    possible_names = _extract_possible_names(turns)
-
-    for name in possible_names:
-        topics.append(name)
+    for mention in known_contact_mentions:
+        topics.append(mention["name"])
 
     topics = list(dict.fromkeys(topics))[:8]
 
@@ -410,12 +457,18 @@ def analyze_conversation(
 
     memory_candidates: list[MemoryCandidate] = []
 
-    for name in possible_names:
+    for mention in known_contact_mentions:
+        relationship = mention.get("relationship")
+        relationship_text = f" ({relationship})" if relationship else ""
+
         memory_candidates.append(
             MemoryCandidate(
-                type="person_mention",
-                content=f"The senior mentioned {name} during the conversation.",
-                confidence=0.55,
+                type="known_support_contact_mention",
+                content=(
+                    f"The senior mentioned {mention['name']}{relationship_text} "
+                    "during the conversation."
+                ),
+                confidence=0.9,
             )
         )
 
