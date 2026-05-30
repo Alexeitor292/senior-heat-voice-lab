@@ -35,6 +35,8 @@ Protected route prefixes include:
     /scheduler
     /operational-status
     /ai-call-sessions
+    /support-contacts
+    /heat-settings
     /debug
 
 Public route prefixes include:

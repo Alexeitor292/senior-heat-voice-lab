@@ -56,6 +56,18 @@ def _build_test_app() -> FastAPI:
     def ai_call_session():
         return {"ok": True}
 
+    @app.patch("/support-contacts/1")
+    def update_support_contact():
+        return {"ok": True}
+
+    @app.delete("/support-contacts/1")
+    def delete_support_contact():
+        return {"ok": True}
+
+    @app.get("/heat-settings")
+    def heat_settings():
+        return {"ok": True}
+
     @app.get("/scheduler/run-due-checks")
     def scheduler_route():
         return {"ok": True}
@@ -98,6 +110,8 @@ def test_operational_paths_are_protected():
     assert _is_protected_path("/ai-call-sessions/1")
     assert _is_protected_path("/ai-call-sessions/1/turns")
     assert _is_protected_path("/ai-call-sessions/1/complete")
+    assert _is_protected_path("/support-contacts/1")
+    assert _is_protected_path("/heat-settings")
 
 
 def test_prefix_matching_does_not_overmatch_similar_paths():
@@ -107,6 +121,8 @@ def test_prefix_matching_does_not_overmatch_similar_paths():
     assert not _is_protected_path("/ui-api-extra")
     assert not _is_protected_path("/debugger")
     assert not _is_protected_path("/ai-call-sessions-extra")
+    assert not _is_protected_path("/support-contacts-extra")
+    assert not _is_protected_path("/heat-settings-extra")
 
 
 def test_credentials_are_valid_with_expected_admin_credentials(monkeypatch):
@@ -183,18 +199,21 @@ def test_protected_routes_require_basic_auth(monkeypatch):
 
     client = TestClient(_build_test_app())
 
-    protected_paths = [
-        "/ui-api/map",
-        "/seniors",
-        "/operator-actions/pending",
-        "/check-ins/1/review",
-        "/ai-call-sessions/1",
-        "/scheduler/run-due-checks",
-        "/debug/check-ins",
+    protected_requests = [
+        ("GET", "/ui-api/map"),
+        ("GET", "/seniors"),
+        ("GET", "/operator-actions/pending"),
+        ("GET", "/check-ins/1/review"),
+        ("GET", "/ai-call-sessions/1"),
+        ("PATCH", "/support-contacts/1"),
+        ("DELETE", "/support-contacts/1"),
+        ("GET", "/heat-settings"),
+        ("GET", "/scheduler/run-due-checks"),
+        ("GET", "/debug/check-ins"),
     ]
 
-    for path in protected_paths:
-        response = client.get(path)
+    for method, path in protected_requests:
+        response = client.request(method, path)
 
         assert response.status_code == 401
         assert response.text == "Authentication required."
@@ -221,18 +240,21 @@ def test_protected_routes_accept_valid_basic_auth(monkeypatch):
     client = TestClient(_build_test_app())
     headers = _basic_auth_header("admin", "change-me-local-dev")
 
-    protected_paths = [
-        "/ui-api/map",
-        "/seniors",
-        "/operator-actions/pending",
-        "/check-ins/1/review",
-        "/ai-call-sessions/1",
-        "/scheduler/run-due-checks",
-        "/debug/check-ins",
+    protected_requests = [
+        ("GET", "/ui-api/map"),
+        ("GET", "/seniors"),
+        ("GET", "/operator-actions/pending"),
+        ("GET", "/check-ins/1/review"),
+        ("GET", "/ai-call-sessions/1"),
+        ("PATCH", "/support-contacts/1"),
+        ("DELETE", "/support-contacts/1"),
+        ("GET", "/heat-settings"),
+        ("GET", "/scheduler/run-due-checks"),
+        ("GET", "/debug/check-ins"),
     ]
 
-    for path in protected_paths:
-        response = client.get(path, headers=headers)
+    for method, path in protected_requests:
+        response = client.request(method, path, headers=headers)
 
         assert response.status_code == 200
         assert response.json() == {"ok": True}

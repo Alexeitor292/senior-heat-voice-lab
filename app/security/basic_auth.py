@@ -29,6 +29,8 @@ PROTECTED_PATH_PREFIXES = (
     "/scheduler",
     "/operational-status",
     "/ai-call-sessions",
+    "/support-contacts",
+    "/heat-settings",
     "/debug",
 )
 
