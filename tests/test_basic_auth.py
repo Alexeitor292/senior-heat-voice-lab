@@ -52,6 +52,10 @@ def _build_test_app() -> FastAPI:
     def check_in_review():
         return {"ok": True}
 
+    @app.get("/ai-call-sessions/1")
+    def ai_call_session():
+        return {"ok": True}
+
     @app.get("/scheduler/run-due-checks")
     def scheduler_route():
         return {"ok": True}
@@ -91,6 +95,9 @@ def test_operational_paths_are_protected():
     assert _is_protected_path("/scheduler/run-due-checks")
     assert _is_protected_path("/operational-status")
     assert _is_protected_path("/debug/check-ins")
+    assert _is_protected_path("/ai-call-sessions/1")
+    assert _is_protected_path("/ai-call-sessions/1/turns")
+    assert _is_protected_path("/ai-call-sessions/1/complete")
 
 
 def test_prefix_matching_does_not_overmatch_similar_paths():
@@ -99,6 +106,7 @@ def test_prefix_matching_does_not_overmatch_similar_paths():
     assert not _is_protected_path("/seniors-extra")
     assert not _is_protected_path("/ui-api-extra")
     assert not _is_protected_path("/debugger")
+    assert not _is_protected_path("/ai-call-sessions-extra")
 
 
 def test_credentials_are_valid_with_expected_admin_credentials(monkeypatch):
@@ -180,6 +188,7 @@ def test_protected_routes_require_basic_auth(monkeypatch):
         "/seniors",
         "/operator-actions/pending",
         "/check-ins/1/review",
+        "/ai-call-sessions/1",
         "/scheduler/run-due-checks",
         "/debug/check-ins",
     ]
@@ -189,7 +198,10 @@ def test_protected_routes_require_basic_auth(monkeypatch):
 
         assert response.status_code == 401
         assert response.text == "Authentication required."
-        assert response.headers["WWW-Authenticate"] == 'Basic realm="Senior Heat Voice Lab"'
+        assert (
+            response.headers["WWW-Authenticate"]
+            == 'Basic realm="Senior Heat Voice Lab"'
+        )
 
 
 def test_protected_routes_accept_valid_basic_auth(monkeypatch):
@@ -214,6 +226,7 @@ def test_protected_routes_accept_valid_basic_auth(monkeypatch):
         "/seniors",
         "/operator-actions/pending",
         "/check-ins/1/review",
+        "/ai-call-sessions/1",
         "/scheduler/run-due-checks",
         "/debug/check-ins",
     ]
