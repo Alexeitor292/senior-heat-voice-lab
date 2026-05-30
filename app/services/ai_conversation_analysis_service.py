@@ -104,9 +104,17 @@ def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-def _lower_text(turns: list[TranscriptTurnInput]) -> str:
-    return " ".join(turn.text for turn in turns).lower()
+SENIOR_SPEAKER_LABELS = {"senior", "user", "caller"}
 
+
+def _is_senior_turn(turn: TranscriptTurnInput) -> bool:
+    return (turn.speaker or "").lower().strip() in SENIOR_SPEAKER_LABELS
+
+
+def _senior_lower_text(turns: list[TranscriptTurnInput]) -> str:
+    return " ".join(
+        turn.text for turn in turns if _is_senior_turn(turn)
+    ).lower()
 
 def _full_transcript(turns: list[TranscriptTurnInput]) -> str:
     lines = []
@@ -130,7 +138,7 @@ def _senior_turn_text(turns: list[TranscriptTurnInput]) -> str:
     return " ".join(
         turn.text
         for turn in turns
-        if (turn.speaker or "").lower().strip() in {"senior", "user", "caller"}
+        if _is_senior_turn(turn)
     )
 
 
@@ -339,8 +347,8 @@ def analyze_conversation(
     heat_risk_value: int | None = None,
     heat_risk_label: str | None = None,
 ) -> ConversationAnalysisResult:
-    text = _lower_text(turns)
-    original_text = " ".join(turn.text for turn in turns)
+    text = _senior_lower_text(turns)
+    original_text = _senior_turn_text(turns)
 
     reason_codes: list[str] = []
     recommended_actions: list[RecommendedOperatorAction] = []
