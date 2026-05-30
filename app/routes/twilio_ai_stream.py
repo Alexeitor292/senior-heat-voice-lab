@@ -89,6 +89,7 @@ def _complete_stream_session(
     stream_sid: str | None,
     media_event_count: int,
     duration_seconds: int | None,
+    terminal_reason: str | None = None,
 ) -> None:
     result = ai_call_session_adapter_service.complete_existing_session(
         session_id=session_id,
@@ -103,6 +104,7 @@ def _complete_stream_session(
                 "stream_sid": stream_sid,
                 "media_event_count": media_event_count,
                 "duration_seconds": duration_seconds,
+                "terminal_reason": terminal_reason,
             },
         ),
     )
@@ -119,9 +121,16 @@ def _complete_stream_session(
         )
         return
 
+    status = (
+        "idle_timeout_no_transcript"
+        if terminal_reason == "idle_timeout"
+        else "stream_stopped_no_transcript"
+    )
+
     _update_call_session_status(
         session_id=session_id,
-        status="stream_stopped_no_transcript",
+        status=status,
+        duration_seconds=duration_seconds,
     )
 
     safe_log_event(
@@ -241,6 +250,7 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                             "stream_sid": stream_sid,
                             "custom_parameters": custom_parameters,
                             "start_event": start,
+                            
                         },
                     ),
                 )
@@ -347,6 +357,7 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                         stream_sid=stream_sid,
                         media_event_count=media_event_count,
                         duration_seconds=duration_seconds,
+                        terminal_reason=realtime_bridge.call_end_reason if realtime_bridge else None,
                     )
 
                 break
