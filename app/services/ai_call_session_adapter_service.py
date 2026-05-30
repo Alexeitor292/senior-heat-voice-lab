@@ -100,6 +100,27 @@ class AICallSessionAdapterService:
 
             senior_call_sid = payload.senior_call_sid or f"ai-session-{uuid4()}"
 
+            existing_session = (
+                db.query(CheckInCallSession)
+                .filter(CheckInCallSession.senior_call_sid == senior_call_sid)
+                .first()
+            )
+
+            if existing_session:
+                existing_session.status = payload.call_status or "in_progress"
+
+                db.commit()
+                db.refresh(existing_session)
+
+                return {
+                    "message": "AI call session already existed; reused existing session.",
+                    "provider": payload.provider,
+                    "provider_session_id": payload.provider_session_id,
+                    "session": _session_to_dict(existing_session),
+                    "raw_provider_payload": payload.raw_provider_payload,
+                    "reused_existing_session": True,
+                }
+
             session = CheckInCallSession(
                 senior_id=senior.id,
                 caregiver_id=None,
@@ -122,6 +143,7 @@ class AICallSessionAdapterService:
                 "provider_session_id": payload.provider_session_id,
                 "session": _session_to_dict(session),
                 "raw_provider_payload": payload.raw_provider_payload,
+                "reused_existing_session": False,
             }
 
     def append_turn(
