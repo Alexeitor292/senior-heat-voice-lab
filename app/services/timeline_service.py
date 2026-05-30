@@ -246,12 +246,32 @@ def _clean_sentence(value: str | None) -> str | None:
 
     return value.strip().rstrip(".")
 
+def _is_legacy_ai_evidence_note(value: str | None) -> bool:
+    if not value:
+        return False
+
+    return (
+        "Created automatically from AI conversation analysis check-in" in value
+        or "Also reinforced by AI conversation analysis check-in" in value
+    )
+
+
+def _visible_operator_note(value: str | None) -> str | None:
+    note = _clean_sentence(value)
+
+    if not note:
+        return None
+
+    if _is_legacy_ai_evidence_note(note):
+        return None
+
+    return note
 
 def _operator_action_description(row: OperatorAction) -> str:
     parts = []
 
     reason = _clean_sentence(row.reason)
-    note = _clean_sentence(row.note)
+    note = _visible_operator_note(row.note)
     status = _clean_sentence(row.status)
 
     if reason:
@@ -264,7 +284,6 @@ def _operator_action_description(row: OperatorAction) -> str:
         parts.append(f"Status: {status}")
 
     return ". ".join(parts) + "." if parts else "Operator action recorded."
-
 
 class TimelineService:
     def get_timeline_for_senior(
