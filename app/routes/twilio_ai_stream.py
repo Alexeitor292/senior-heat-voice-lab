@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from urllib.parse import urlparse
 from xml.sax.saxutils import quoteattr
 
@@ -41,7 +42,6 @@ def _ai_stream_twiml(
 ) -> str:
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>Hello. This is your AI wellness companion check-in. One moment while I connect you.</Say>
   <Connect>
     <Stream url={quoteattr(stream_url)}>
       <Parameter name="senior_id" value={quoteattr(str(senior_id))} />
@@ -88,6 +88,7 @@ def _complete_stream_session(
     call_sid: str | None,
     stream_sid: str | None,
     media_event_count: int,
+    duration_seconds: int | None,
 ) -> None:
     result = ai_call_session_adapter_service.complete_existing_session(
         session_id=session_id,
@@ -96,11 +97,12 @@ def _complete_stream_session(
             provider_session_id=stream_sid,
             senior_call_sid=call_sid,
             call_status="completed",
-            duration_seconds=None,
+            duration_seconds=duration_seconds,
             create_operator_actions=True,
             raw_provider_payload={
                 "stream_sid": stream_sid,
                 "media_event_count": media_event_count,
+                "duration_seconds": duration_seconds,
             },
         ),
     )
@@ -165,6 +167,7 @@ async def ai_check_in_media_stream(websocket: WebSocket):
     call_sid: str | None = None
     stream_sid: str | None = None
     media_event_count = 0
+    stream_started_at_monotonic: float | None = None
     realtime_bridge: OpenAIRealtimeTwilioBridge | None = None
 
     safe_log_event(
@@ -204,6 +207,7 @@ async def ai_check_in_media_stream(websocket: WebSocket):
             elif event == "start":
                 start = message.get("start") or {}
                 custom_parameters = start.get("customParameters") or {}
+                stream_started_at_monotonic = time.monotonic()
 
                 stream_sid = start.get("streamSid") or message.get("streamSid")
                 call_sid = start.get("callSid")
@@ -327,11 +331,16 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                     await realtime_bridge.close()
 
                 if session_id is not None:
+                    duration_seconds = None
+
+                    if stream_started_at_monotonic is not None:
+                        duration_seconds = max(0, int(time.monotonic() - stream_started_at_monotonic))
                     _complete_stream_session(
                         session_id=session_id,
                         call_sid=call_sid,
                         stream_sid=stream_sid,
                         media_event_count=media_event_count,
+                        duration_seconds=duration_seconds,
                     )
 
                 break
@@ -361,7 +370,12 @@ async def ai_check_in_media_stream(websocket: WebSocket):
             await realtime_bridge.close()
 
         if session_id is not None:
+            duration_seconds = None
+
+            if stream_started_at_monotonic is not None:
+                duration_seconds = max(0, int(time.monotonic() - stream_started_at_monotonic))
             _update_call_session_status(
                 session_id=session_id,
                 status="stream_disconnected",
+                duration_seconds=duration_seconds,
             )
