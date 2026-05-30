@@ -117,6 +117,7 @@ def _complete_stream_session(
                 "check_in_id": result.get("check_in_id"),
                 "insight_id": result.get("insight_id"),
                 "review_url": result.get("check_in_review_url"),
+                "terminal_reason": terminal_reason,
             },
         )
         return
@@ -139,6 +140,9 @@ def _complete_stream_session(
             "session_id": session_id,
             "call_sid": call_sid,
             "stream_sid": stream_sid,
+            "status": status,
+            "duration_seconds": duration_seconds,
+            "terminal_reason": terminal_reason,
         },
     )
 
