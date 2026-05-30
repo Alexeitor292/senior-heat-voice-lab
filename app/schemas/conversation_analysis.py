@@ -61,3 +61,4 @@ class ConversationAnalysisStoredResponse(BaseModel):
     insight_id: int
     analysis: ConversationAnalysisResult
     operator_actions_created: list[dict]
+    operator_actions_updated: list[dict] = Field(default_factory=list)

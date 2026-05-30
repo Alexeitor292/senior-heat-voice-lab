@@ -203,6 +203,69 @@ def _latest_heat_context(
         return row.heat_risk_value, row.heat_risk_label
 
 
+def _action_type_label(action_type: str) -> str:
+    labels = {
+        "operator_review": "operator review",
+        "message_support": "support outreach",
+        "wellness_check": "wellness check",
+        "call_senior": "senior callback",
+    }
+
+    return labels.get(action_type, action_type.replace("_", " "))
+
+
+def _recommended_action_summary(
+    actions: list[RecommendedOperatorAction],
+    risk_level: str,
+) -> str | None:
+    if not actions:
+        return None
+
+    action_types = [action.action_type for action in actions]
+    labels = [_action_type_label(action_type) for action_type in action_types]
+
+    if len(labels) == 1:
+        return f"{labels[0].capitalize()} recommended"
+
+    if len(labels) == 2:
+        return f"{labels[0].capitalize()} + {labels[1]} recommended"
+
+    return f"{risk_level.capitalize()} follow-up recommended: " + ", ".join(labels)
+
+
+def _append_check_in_note(
+    existing_note: str | None,
+    check_in_id: int,
+    reason: str,
+) -> str:
+    reinforcement = (
+        f"Also reinforced by AI conversation analysis check-in #{check_in_id}: "
+        f"{reason}"
+    )
+
+    if not existing_note:
+        return reinforcement
+
+    if f"check-in #{check_in_id}" in existing_note:
+        return existing_note
+
+    return f"{existing_note}\n{reinforcement}"
+
+
+def _operator_action_to_summary_dict(row: OperatorAction) -> dict[str, Any]:
+    return {
+        "id": row.id,
+        "senior_id": row.senior_id,
+        "action_type": row.action_type,
+        "status": row.status,
+        "reason": row.reason,
+        "note": row.note,
+        "target_contact_id": row.target_contact_id,
+        "created_by": row.created_by,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
 def analyze_conversation(
     senior_id: int,
     turns: list[TranscriptTurnInput],
@@ -450,11 +513,10 @@ class AIConversationAnalysisService:
                 in analysis.safety_assessment.reason_codes,
                 escalation_needed=analysis.safety_assessment.escalation_needed,
                 caregiver_summary=analysis.relationship_assessment.conversation_summary,
-                recommended_action="; ".join(
-                    action.reason
-                    for action in analysis.safety_assessment.recommended_actions
-                )
-                or None,
+                recommended_action=_recommended_action_summary(
+                    analysis.safety_assessment.recommended_actions,
+                    analysis.safety_assessment.risk_level,
+                ),
                 confidence_notes=f"Confidence: {analysis.safety_assessment.confidence:.2f}",
                 analyzer=ANALYZER_NAME,
                 raw_analysis_json=analysis.model_dump_json(),
@@ -535,6 +597,7 @@ class AIConversationAnalysisService:
                 )
 
             operator_actions_created = []
+            operator_actions_updated = []
 
             if request.create_operator_actions:
                 for action in analysis.safety_assessment.recommended_actions:
@@ -547,6 +610,21 @@ class AIConversationAnalysisService:
                     )
 
                     if existing_pending:
+                        existing_pending.note = _append_check_in_note(
+                            existing_note=existing_pending.note,
+                            check_in_id=check_in.id,
+                            reason=action.reason,
+                        )
+
+                        # Preserve the original reason. The note now carries the later
+                        # reinforcement context, and the review page can link it back.
+                        db.commit()
+                        db.refresh(existing_pending)
+
+                        operator_actions_updated.append(
+                            _operator_action_to_summary_dict(existing_pending)
+                        )
+
                         continue
 
                     operator_action = OperatorAction(
@@ -564,14 +642,7 @@ class AIConversationAnalysisService:
                     db.refresh(operator_action)
 
                     operator_actions_created.append(
-                        {
-                            "id": operator_action.id,
-                            "senior_id": operator_action.senior_id,
-                            "action_type": operator_action.action_type,
-                            "status": operator_action.status,
-                            "reason": operator_action.reason,
-                            "target_contact_id": operator_action.target_contact_id,
-                        }
+                        _operator_action_to_summary_dict(operator_action)
                     )
 
             db.commit()
@@ -582,6 +653,7 @@ class AIConversationAnalysisService:
                 "insight_id": insight.id,
                 "analysis": analysis.model_dump(),
                 "operator_actions_created": operator_actions_created,
+                "operator_actions_updated": operator_actions_updated,
             }
 
     def list_insights_for_senior(
