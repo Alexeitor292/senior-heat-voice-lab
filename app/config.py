@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password: str = "change-me-local-dev"
 
+    expose_api_docs: bool = True
+
     cors_allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     twilio_signature_validation_enabled: bool = True
@@ -79,6 +81,11 @@ class Settings(BaseSettings):
         if not self.dashboard_auth_enabled:
             errors.append(
                 "DASHBOARD_AUTH_ENABLED must be true in production until real user auth replaces it."
+            )
+        
+        if self.expose_api_docs:
+            errors.append(
+                "EXPOSE_API_DOCS must be false in production."
             )
 
         if not self.twilio_signature_validation_enabled:

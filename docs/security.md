@@ -249,6 +249,7 @@ Production startup will fail if:
     LOG_TRANSCRIPTS=true
     LOG_RAW_ANALYSIS=true
     CORS_ALLOWED_ORIGINS=*
+    EXPOSE_API_DOCS=true
 
 This is intentional. Production should fail closed instead of booting with unsafe defaults.
 
@@ -270,6 +271,26 @@ Expected behavior:
     GET /ready  -> 503 Service Unavailable with auth if not ready
 
 In production, `/ready` should ideally only be reachable by an internal load balancer, deployment platform health checker, or authenticated operator.
+
+## API Docs and OpenAPI Exposure
+
+FastAPI docs are useful during local development:
+
+    /docs
+    /redoc
+    /openapi.json
+
+These expose the API route surface and should not be public in production.
+
+Configuration:
+
+    EXPOSE_API_DOCS=true
+
+Production must use:
+
+    EXPOSE_API_DOCS=false
+
+When `APP_ENV=production`, startup validation rejects `EXPOSE_API_DOCS=true`.
 
 ## Current Production Gaps
 

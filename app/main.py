@@ -43,6 +43,9 @@ app = FastAPI(
     version="0.1.0",
     description="Prototype for senior heat safety phone check-ins.",
     lifespan=lifespan,
+    docs_url="/docs" if settings.expose_api_docs else None,
+    redoc_url="/redoc" if settings.expose_api_docs else None,
+    openapi_url="/openapi.json" if settings.expose_api_docs else None,
 )
 
 app.add_middleware(BasicDashboardAuthMiddleware)
