@@ -12,6 +12,18 @@ Install dependencies:
 
     python -m pip install -r requirements.txt
 
+Apply database migrations:
+
+    python -m alembic upgrade head
+
+The app no longer auto-creates tables by default. For throwaway local development only, you may set:
+
+    AUTO_CREATE_DB_TABLES=true
+
+Production should keep:
+
+    AUTO_CREATE_DB_TABLES=false
+
 Create a local `.env` from `.env.example` and fill in development values.
 
 Run tests:

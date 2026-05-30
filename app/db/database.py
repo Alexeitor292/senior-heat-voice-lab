@@ -10,9 +10,12 @@ class Base(DeclarativeBase):
     pass
 
 
-def _ensure_sqlite_parent_dir_exists():
+def _ensure_sqlite_parent_dir_exists() -> None:
     """
-    If using local SQLite, make sure the ./data folder exists.
+    If using local SQLite, make sure the parent folder exists.
+
+    This does not create database tables. It only ensures paths like ./data/
+    exist before SQLite tries to open the file.
     """
 
     database_url = settings.database_url
@@ -35,7 +38,7 @@ engine = create_engine(
     settings.database_url,
     connect_args={"check_same_thread": False}
     if settings.database_url.startswith("sqlite")
-    else {}
+    else {},
 )
 
 SessionLocal = sessionmaker(
@@ -45,14 +48,25 @@ SessionLocal = sessionmaker(
 )
 
 
-def init_db():
+def init_db() -> None:
     """
-    Creates database tables if they do not exist.
+    Initializes database access at app startup.
 
-    For now this is enough for local dev.
-    Later, use Alembic migrations.
+    Alembic migrations are now the default schema-management path.
+
+    Set AUTO_CREATE_DB_TABLES=true only for local throwaway development
+    environments where automatic SQLAlchemy create_all behavior is desired.
+    Do not use AUTO_CREATE_DB_TABLES=true in production.
     """
+
+    if not settings.auto_create_db_tables:
+        print(
+            "Database auto-create disabled. "
+            "Use `python -m alembic upgrade head` to apply migrations."
+        )
+        return
 
     from app.db import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    print("Database tables auto-created from SQLAlchemy metadata.")
