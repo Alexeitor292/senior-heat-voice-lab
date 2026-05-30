@@ -12,6 +12,43 @@ class AICallTranscriptTurn(BaseModel):
     ended_at_ms: int | None = None
 
 
+class AICallSessionStartRequest(BaseModel):
+    provider: str = Field(default="manual_adapter")
+    provider_session_id: str | None = None
+    senior_call_sid: str | None = None
+    call_status: str = Field(default="in_progress")
+    raw_provider_payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class AICallSessionTurnRequest(BaseModel):
+    speaker: str = Field(default="senior")
+    text: str = Field(..., min_length=1)
+    started_at_ms: int | None = None
+    ended_at_ms: int | None = None
+    senior_call_sid: str | None = None
+    provider_event_id: str | None = None
+    raw_provider_payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class AICallSessionCompleteRequest(BaseModel):
+    provider: str = Field(default="manual_adapter")
+    provider_session_id: str | None = None
+
+    senior_call_sid: str | None = None
+    call_status: str = Field(default="completed")
+    duration_seconds: int | None = None
+
+    heat_risk_value: int | None = None
+    heat_risk_label: str | None = None
+
+    # Optional. If omitted, the backend uses transcript turns already appended
+    # to this call session.
+    transcript_turns: list[AICallTranscriptTurn] | None = None
+
+    create_operator_actions: bool = True
+    raw_provider_payload: dict[str, Any] = Field(default_factory=dict)
+
+
 class AICallCompletionRequest(BaseModel):
     provider: str = Field(default="manual_adapter")
     provider_session_id: str | None = None

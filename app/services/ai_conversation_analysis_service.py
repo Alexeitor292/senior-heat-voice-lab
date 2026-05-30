@@ -581,20 +581,37 @@ class AIConversationAnalysisService:
             db.commit()
             db.refresh(check_in)
 
-            for index, turn in enumerate(request.transcript_turns):
-                db.add(
-                    TranscriptTurn(
-                        senior_id=senior_id,
-                        check_in_id=check_in.id,
-                        call_session_id=request.call_session_id,
-                        senior_call_sid=request.senior_call_sid,
-                        turn_index=index,
-                        speaker=turn.speaker,
-                        text=turn.text,
-                        started_at_ms=turn.started_at_ms,
-                        ended_at_ms=turn.ended_at_ms,
-                    )
+            existing_session_turns = []
+
+            if request.call_session_id:
+                existing_session_turns = (
+                    db.query(TranscriptTurn)
+                    .filter(TranscriptTurn.call_session_id == request.call_session_id)
+                    .order_by(TranscriptTurn.turn_index.asc())
+                    .all()
                 )
+
+            if existing_session_turns:
+                for row in existing_session_turns:
+                    row.check_in_id = check_in.id
+
+                    if request.senior_call_sid:
+                        row.senior_call_sid = request.senior_call_sid
+            else:
+                for index, turn in enumerate(request.transcript_turns):
+                    db.add(
+                        TranscriptTurn(
+                            senior_id=senior_id,
+                            check_in_id=check_in.id,
+                            call_session_id=request.call_session_id,
+                            senior_call_sid=request.senior_call_sid,
+                            turn_index=index,
+                            speaker=turn.speaker,
+                            text=turn.text,
+                            started_at_ms=turn.started_at_ms,
+                            ended_at_ms=turn.ended_at_ms,
+                        )
+                    )
 
             insight = ConversationInsight(
                 senior_id=senior_id,
