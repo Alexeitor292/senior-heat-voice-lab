@@ -1,4 +1,3 @@
-@'
 name: CI
 
 on:
@@ -21,13 +20,21 @@ jobs:
       TWILIO_PHONE_NUMBER: "+15550000000"
       TEST_PHONE_NUMBER: "+15551111111"
       PUBLIC_BASE_URL: https://test.example.com
+
       DATABASE_URL: sqlite:///./data/ci_test.db
       AUTO_CREATE_DB_TABLES: "false"
+
       DASHBOARD_AUTH_ENABLED: "true"
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: change-me-local-dev
+
       TWILIO_SIGNATURE_VALIDATION_ENABLED: "true"
+
       OPENAI_REALTIME_ENABLED: "false"
+
+      HEAT_RISK_PROVIDER: manual
+      MANUAL_HEAT_RISK_VALUE: "2"
+
       LOG_PII: "false"
       LOG_TRANSCRIPTS: "false"
       LOG_RAW_ANALYSIS: "false"
@@ -47,13 +54,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Apply Alembic migrations to fresh CI database
+      - name: Check Alembic migration drift
         run: |
           mkdir -p data
+          python -m alembic check
+
+      - name: Apply Alembic migrations to fresh CI database
+        run: |
+          rm -f data/ci_test.db
           python -m alembic upgrade head
 
       - name: Run backend tests
-        run: pytest -q
+        run: python -m pytest -q
 
   frontend:
     name: Frontend typecheck and build
@@ -69,6 +81,7 @@ jobs:
       API_BASIC_AUTH_USERNAME: admin
       API_BASIC_AUTH_PASSWORD: change-me-local-dev
       NEXT_PUBLIC_ALLOW_MOCK_FALLBACK: "false"
+      ENABLE_BACKEND_PROXY_IN_PRODUCTION: "false"
 
     steps:
       - name: Checkout repository
@@ -89,4 +102,3 @@ jobs:
 
       - name: Build frontend
         run: npm run build
-'@ | Set-Content -Encoding utf8 .github/workflows/ci.yml
