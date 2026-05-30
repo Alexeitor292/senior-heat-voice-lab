@@ -187,6 +187,30 @@ Local development should use `.env` and `frontend/.env.local`.
 
 Production should use the deployment platform secret manager.
 
+
+## AI Media Stream WebSocket Tokens
+
+The Twilio/OpenAI media-stream websocket endpoint is:
+
+    /twilio/media/ai-check-in
+
+This endpoint is public-facing because Twilio needs to connect to it.
+
+To prevent arbitrary clients from connecting, the TwiML generation route adds a short-lived signed token to the websocket URL:
+
+    stream_token=<signed-token>
+
+The websocket validates this token before accepting the connection.
+
+Configuration:
+
+    AI_STREAM_TOKEN_SECRET=
+    AI_STREAM_TOKEN_TTL_SECONDS=300
+
+If `AI_STREAM_TOKEN_SECRET` is not set, local development falls back to `TWILIO_AUTH_TOKEN` as the signing secret.
+
+Production should set a dedicated `AI_STREAM_TOKEN_SECRET`.
+
 ## Current Production Gaps
 
 Before production, address:

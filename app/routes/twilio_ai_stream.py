@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 from xml.sax.saxutils import quoteattr
 
 from fastapi import APIRouter, Query, Response, WebSocket, WebSocketDisconnect
@@ -10,6 +10,7 @@ from fastapi import APIRouter, Query, Response, WebSocket, WebSocketDisconnect
 from app.config import settings
 from app.db.database import SessionLocal
 from app.db.models import CheckInCallSession
+from app.security.ai_stream_token import create_ai_stream_token, verify_ai_stream_token
 from app.schemas.ai_call_sessions import (
     AICallSessionCompleteRequest,
     AICallSessionStartRequest,
@@ -22,7 +23,11 @@ from app.utils.safe_logging import safe_log_event
 router = APIRouter(prefix="/twilio", tags=["Twilio AI Stream"])
 
 
-def _public_ws_url(path: str) -> str:
+def _public_ws_url(
+    path: str,
+    *,
+    query_params: dict[str, str] | None = None,
+) -> str:
     parsed = urlparse(settings.public_base_url.rstrip("/"))
 
     if parsed.scheme == "https":
@@ -32,7 +37,12 @@ def _public_ws_url(path: str) -> str:
     else:
         ws_scheme = "wss"
 
-    return f"{ws_scheme}://{parsed.netloc}{path}"
+    url = f"{ws_scheme}://{parsed.netloc}{path}"
+
+    if query_params:
+        url = f"{url}?{urlencode(query_params)}"
+
+    return url
 
 
 def _ai_stream_twiml(
@@ -151,13 +161,21 @@ def _complete_stream_session(
 async def ai_check_in_voice(
     senior_id: int = Query(...),
 ):
-    stream_url = _public_ws_url("/twilio/media/ai-check-in")
+    stream_token = create_ai_stream_token(senior_id)
+
+    stream_url = _public_ws_url(
+        "/twilio/media/ai-check-in",
+        query_params={
+            "stream_token": stream_token,
+        },
+    )
 
     safe_log_event(
         "AI Check-In TwiML Generated",
         {
             "senior_id": senior_id,
-            "stream_url": stream_url,
+            "stream_url_path": "/twilio/media/ai-check-in",
+            "stream_token_ttl_seconds": settings.ai_stream_token_ttl_seconds,
             "openai_realtime_enabled": settings.openai_realtime_enabled,
         },
     )
@@ -173,8 +191,23 @@ async def ai_check_in_voice(
 
 @router.websocket("/media/ai-check-in")
 async def ai_check_in_media_stream(websocket: WebSocket):
+    token_claims = verify_ai_stream_token(
+        websocket.query_params.get("stream_token")
+    )
+
+    if not token_claims:
+        safe_log_event(
+            "AI Media Stream Rejected Invalid Token",
+            {
+                "client": str(websocket.client),
+            },
+        )
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
 
+    expected_senior_id = token_claims.senior_id
     session_id: int | None = None
     senior_id: int | None = None
     call_sid: str | None = None
@@ -242,6 +275,19 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                     )
                     await websocket.close(code=1008)
                     return
+                
+                if senior_id != expected_senior_id:
+                    safe_log_event(
+                        "AI Media Stream Senior ID Token Mismatch",
+                        {
+                            "expected_senior_id": expected_senior_id,
+                            "provided_senior_id": senior_id,
+                            "call_sid": call_sid,
+                            "stream_sid": stream_sid,
+                        },
+                    )
+                    await websocket.close(code=1008)
+                    return
 
                 result = ai_call_session_adapter_service.start_session(
                     senior_id=senior_id,
@@ -252,9 +298,12 @@ async def ai_check_in_media_stream(websocket: WebSocket):
                         call_status="in_progress",
                         raw_provider_payload={
                             "stream_sid": stream_sid,
-                            "custom_parameters": custom_parameters,
+                            "custom_parameters": {
+                                key: value
+                                for key, value in custom_parameters.items()
+                                if "token" not in key.lower()
+                            },
                             "start_event": start,
-                            
                         },
                     ),
                 )

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     openai_realtime_model: str = "gpt-realtime-2"
     openai_realtime_voice: str = "marin"
 
+    ai_stream_token_secret: str | None = None
+    ai_stream_token_ttl_seconds: int = 300
+
     database_url: str = "sqlite:///./data/senior_heat_voice_lab.db"
     auto_create_db_tables: bool = False
 

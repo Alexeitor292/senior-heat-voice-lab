@@ -1,9 +1,12 @@
 import asyncio
 import json
 import time
+from urllib.parse import quote
 
 import websockets
 from websockets.exceptions import ConnectionClosed
+
+from app.security.ai_stream_token import create_ai_stream_token
 
 
 async def receiver(ws):
@@ -24,7 +27,12 @@ async def receiver(ws):
 
 
 async def main():
-    uri = "ws://localhost:8000/twilio/media/ai-check-in"
+    senior_id = 1
+    stream_token = create_ai_stream_token(senior_id)
+    uri = (
+        "ws://localhost:8000/twilio/media/ai-check-in"
+        f"?stream_token={quote(stream_token)}"
+    )
 
     async with websockets.connect(uri) as ws:
         await ws.send(
@@ -45,7 +53,7 @@ async def main():
                         "streamSid": "MZ_mock_stream_realtime_001",
                         "callSid": "CA_mock_ai_realtime_001",
                         "customParameters": {
-                            "senior_id": "1",
+                            "senior_id": str(senior_id),
                             "provider": "twilio_media_stream",
                         },
                         "mediaFormat": {
