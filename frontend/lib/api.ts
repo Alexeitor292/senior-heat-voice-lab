@@ -35,13 +35,117 @@ import {
   MOCK_TIMELINE,
 } from "./mock-data";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const SERVER_API_BASE =
+  process.env.INTERNAL_API_BASE_URL ??
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "http://localhost:8000";
+
+const BROWSER_API_BASE = "/api/backend";
+
+const API_BASIC_AUTH_USERNAME = process.env.API_BASIC_AUTH_USERNAME;
+const API_BASIC_AUTH_PASSWORD = process.env.API_BASIC_AUTH_PASSWORD;
+
+const ALLOW_MOCK_FALLBACK =
+  process.env.NEXT_PUBLIC_ALLOW_MOCK_FALLBACK === "true";
+
+class ApiError extends Error {
+  status: number;
+  path: string;
+  responseBody: string;
+
+  constructor({
+    status,
+    path,
+    responseBody,
+  }: {
+    status: number;
+    path: string;
+    responseBody: string;
+  }) {
+    super(`API error ${status}: ${path}${responseBody ? ` - ${responseBody}` : ""}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.path = path;
+    this.responseBody = responseBody;
+  }
+}
+
+function isBrowserRuntime(): boolean {
+  return typeof window !== "undefined";
+}
+
+function apiUrl(path: string): string {
+  if (isBrowserRuntime()) {
+    return `${BROWSER_API_BASE}${path}`;
+  }
+
+  return `${SERVER_API_BASE}${path}`;
+}
+
+function encodeBasicAuth(username: string, password: string): string {
+  return Buffer.from(`${username}:${password}`, "utf-8").toString("base64");
+}
+
+function apiAuthHeaders(): HeadersInit {
+  if (isBrowserRuntime()) {
+    return {};
+  }
+
+  if (!API_BASIC_AUTH_USERNAME || !API_BASIC_AUTH_PASSWORD) {
+    return {};
+  }
+
+  return {
+    Authorization: `Basic ${encodeBasicAuth(
+      API_BASIC_AUTH_USERNAME,
+      API_BASIC_AUTH_PASSWORD
+    )}`,
+  };
+}
+
+function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError;
+}
+
+function fallbackOrThrow<T>({
+  path,
+  error,
+  fallback,
+  feature,
+}: {
+  path: string;
+  error: unknown;
+  fallback: T;
+  feature: string;
+}): T {
+  if (ALLOW_MOCK_FALLBACK) {
+    console.warn(
+      `[mock-fallback] ${feature} is using mock/fallback data because ${path} failed.`,
+      error
+    );
+
+    return fallback;
+  }
+
+  throw error;
+}
 
 async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { cache: "no-store" });
+  const res = await fetch(apiUrl(path), {
+    cache: "no-store",
+    headers: {
+      ...apiAuthHeaders(),
+    },
+  });
 
   if (!res.ok) {
-    throw new Error(`API error ${res.status}: ${path}`);
+    const responseBody = await res.text().catch(() => "");
+
+    throw new ApiError({
+      status: res.status,
+      path,
+      responseBody,
+    });
   }
 
   return res.json() as Promise<T>;
@@ -54,15 +158,23 @@ async function apiSend<T>(
     body?: unknown;
   }
 ): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(apiUrl(path), {
     method: options.method,
-    headers: options.body ? { "Content-Type": "application/json" } : undefined,
+    headers: {
+      ...apiAuthHeaders(),
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+    },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
   if (!res.ok) {
-    const message = await res.text().catch(() => "");
-    throw new Error(message || `API error ${res.status}: ${path}`);
+    const responseBody = await res.text().catch(() => "");
+
+    throw new ApiError({
+      status: res.status,
+      path,
+      responseBody,
+    });
   }
 
   return res.json() as Promise<T>;
@@ -98,10 +210,17 @@ function fallbackMapView(): MapViewData {
 // Map --------------------------------------------------------------------
 
 export async function getMapView(): Promise<MapViewData> {
+  const path = "/ui-api/map";
+
   try {
-    return await apiFetch<MapViewData>("/ui-api/map");
-  } catch {
-    return fallbackMapView();
+    return await apiFetch<MapViewData>(path);
+  } catch (error) {
+    return fallbackOrThrow({
+      path,
+      error,
+      fallback: fallbackMapView(),
+      feature: "Map view",
+    });
   }
 }
 
@@ -113,34 +232,71 @@ export async function getMapSeniors(): Promise<Senior[]> {
 // Seniors ----------------------------------------------------------------
 
 export async function getSeniors(): Promise<Senior[]> {
+  const path = "/ui-api/seniors";
+
   try {
-    const data = await apiFetch<{ items: Senior[] }>("/ui-api/seniors");
+    const data = await apiFetch<{ items: Senior[] }>(path);
     return data.items;
-  } catch {
-    return MOCK_SENIORS;
+  } catch (error) {
+    return fallbackOrThrow({
+      path,
+      error,
+      fallback: MOCK_SENIORS,
+      feature: "Senior directory",
+    });
   }
 }
 
 export async function getSenior(id: string | number): Promise<Senior | null> {
+  const path = `/ui-api/seniors/${id}`;
+
   try {
-    const data = await apiFetch<{ senior: Senior }>(`/ui-api/seniors/${id}`);
+    const data = await apiFetch<{ senior: Senior }>(path);
     return data.senior;
-  } catch {
-    return MOCK_SENIORS.find((s) => String(s.id) === String(id)) ?? null;
+  } catch (error) {
+    const fallbackSenior =
+      MOCK_SENIORS.find((senior) => String(senior.id) === String(id)) ?? null;
+
+    if (ALLOW_MOCK_FALLBACK && fallbackSenior) {
+      return fallbackOrThrow({
+        path,
+        error,
+        fallback: fallbackSenior,
+        feature: "Senior detail",
+      });
+    }
+
+    if (isApiError(error) && error.status === 404) {
+      return null;
+    }
+
+    return fallbackOrThrow({
+      path,
+      error,
+      fallback: fallbackSenior,
+      feature: "Senior detail",
+    });
   }
 }
 
 export async function getSeniorTimeline(
   id: string | number
 ): Promise<TimelineItem[]> {
+  const path = `/ui-api/seniors/${id}`;
+
   try {
     const data = await apiFetch<{ senior: Senior; timeline: TimelineItem[] }>(
-      `/ui-api/seniors/${id}`
+      path
     );
 
     return data.timeline;
-  } catch {
-    return MOCK_TIMELINE;
+  } catch (error) {
+    return fallbackOrThrow({
+      path,
+      error,
+      fallback: MOCK_TIMELINE,
+      feature: "Senior timeline",
+    });
   }
 }
 
@@ -260,11 +416,18 @@ export async function updateSeniorDemographics(
 // Dashboard --------------------------------------------------------------
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
+  const path = "/ui-api/dashboard";
+
   try {
-    const data = await apiFetch<{ summary: DashboardSummary }>("/ui-api/dashboard");
+    const data = await apiFetch<{ summary: DashboardSummary }>(path);
     return data.summary;
-  } catch {
-    return MOCK_DASHBOARD_SUMMARY;
+  } catch (error) {
+    return fallbackOrThrow({
+      path,
+      error,
+      fallback: MOCK_DASHBOARD_SUMMARY,
+      feature: "Dashboard summary",
+    });
   }
 }
 
@@ -276,6 +439,8 @@ export async function getDashboardView(): Promise<{
   trendData: HeatTrendPoint[];
   pendingOperatorActions: OperatorAction[];
 }> {
+  const path = "/ui-api/dashboard";
+
   try {
     const dashboard = await apiFetch<{
       summary: DashboardSummary;
@@ -283,69 +448,111 @@ export async function getDashboardView(): Promise<{
       schedule: ScheduleItem[];
       alerts: Alert[];
       trendData: HeatTrendPoint[];
-    }>("/ui-api/dashboard");
+    }>(path);
 
-    let pendingOperatorActions: OperatorAction[] = [];
-
-    try {
-      const pending = await getPendingOperatorActions();
-      pendingOperatorActions = pending.items ?? [];
-    } catch {
-      pendingOperatorActions = [];
-    }
+    const pending = await getPendingOperatorActions();
 
     return {
       ...dashboard,
-      pendingOperatorActions,
+      pendingOperatorActions: pending.items ?? [],
     };
-  } catch {
-    return {
-      summary: MOCK_DASHBOARD_SUMMARY,
-      priorities: MOCK_PRIORITIES,
-      schedule: MOCK_SCHEDULE,
-      alerts: MOCK_ALERTS,
-      trendData: HEAT_TREND_DATA,
-      pendingOperatorActions: [],
-    };
+  } catch (error) {
+    return fallbackOrThrow({
+      path,
+      error,
+      fallback: {
+        summary: MOCK_DASHBOARD_SUMMARY,
+        priorities: MOCK_PRIORITIES,
+        schedule: MOCK_SCHEDULE,
+        alerts: MOCK_ALERTS,
+        trendData: HEAT_TREND_DATA,
+        pendingOperatorActions: [],
+      },
+      feature: "Operations dashboard",
+    });
   }
 }
 
 // Alerts -----------------------------------------------------------------
 
 export async function getAlerts(): Promise<Alert[]> {
+  const path = "/ui-api/alerts";
+
   try {
-    const data = await apiFetch<{ items: Alert[] }>("/ui-api/alerts");
+    const data = await apiFetch<{ items: Alert[] }>(path);
     return data.items;
-  } catch {
-    return MOCK_ALERTS;
+  } catch (error) {
+    return fallbackOrThrow({
+      path,
+      error,
+      fallback: MOCK_ALERTS,
+      feature: "Alerts",
+    });
   }
 }
 
 // Heat Checks ------------------------------------------------------------
 
 export async function getHeatChecks(): Promise<HeatCheck[]> {
-  return [MOCK_HEAT_CHECK];
+  if (ALLOW_MOCK_FALLBACK) {
+    console.warn(
+      "[mock-fallback] Heat check list is using mock data because no real heat-check list endpoint is wired yet."
+    );
+
+    return [MOCK_HEAT_CHECK];
+  }
+
+  throw new Error(
+    "Heat check list is not wired to a real backend endpoint yet. Set NEXT_PUBLIC_ALLOW_MOCK_FALLBACK=true to use mock data."
+  );
 }
 
 export async function getHeatCheck(id: string): Promise<HeatCheck | null> {
+  const path = `/ui-api/heat-checks/${id}`;
+
   try {
-    return await apiFetch<HeatCheck>(`/ui-api/heat-checks/${id}`);
-  } catch {
-    if (id === MOCK_HEAT_CHECK.id || id === "live-eleanor") {
-      return MOCK_HEAT_CHECK;
+    return await apiFetch<HeatCheck>(path);
+  } catch (error) {
+    const mockHeatCheck =
+      id === MOCK_HEAT_CHECK.id || id === "live-eleanor"
+        ? MOCK_HEAT_CHECK
+        : null;
+
+    if (ALLOW_MOCK_FALLBACK && mockHeatCheck) {
+      return fallbackOrThrow({
+        path,
+        error,
+        fallback: mockHeatCheck,
+        feature: "Heat check detail",
+      });
     }
 
-    return null;
+    if (isApiError(error) && error.status === 404) {
+      return null;
+    }
+
+    return fallbackOrThrow({
+      path,
+      error,
+      fallback: mockHeatCheck,
+      feature: "Heat check detail",
+    });
   }
 }
 
 export async function getCheckInReview(
   checkInId: string | number
 ): Promise<CheckInReview | null> {
+  const path = `/check-ins/${checkInId}/review`;
+
   try {
-    return await apiFetch<CheckInReview>(`/check-ins/${checkInId}/review`);
-  } catch {
-    return null;
+    return await apiFetch<CheckInReview>(path);
+  } catch (error) {
+    if (isApiError(error) && error.status === 404) {
+      return null;
+    }
+
+    throw error;
   }
 }
 
@@ -354,13 +561,23 @@ export async function getCheckInReview(
 export async function startHeatCheck(
   seniorId: string | number
 ): Promise<StartHeatCheckResponse> {
-  const res = await fetch(`${BASE}/seniors/${seniorId}/start-check-in`, {
+  const path = `/seniors/${seniorId}/start-check-in`;
+
+  const res = await fetch(apiUrl(path), {
     method: "POST",
+    headers: {
+      ...apiAuthHeaders(),
+    },
   });
 
   if (!res.ok) {
-    const message = await res.text().catch(() => "");
-    throw new Error(message || "Failed to start heat check");
+    const responseBody = await res.text().catch(() => "");
+
+    throw new ApiError({
+      status: res.status,
+      path,
+      responseBody,
+    });
   }
 
   const data = await res.json();
